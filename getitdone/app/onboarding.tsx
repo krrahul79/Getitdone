@@ -93,12 +93,12 @@ export default function OnboardingScreen() {
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      router.replace("/"); // Go to dashboard/home
+      router.replace("/tabs/home"); // Go to dashboard/home tab
     }
   };
 
   const handleSkip = () => {
-    router.replace("/"); // Go to dashboard/home
+    router.replace("/tabs/home"); // Go to dashboard/home tab
   };
 
   // Step dots
