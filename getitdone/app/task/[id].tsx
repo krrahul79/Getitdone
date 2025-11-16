@@ -49,9 +49,7 @@ export default function TaskDetailScreen() {
   };
 
   const handleEdit = () => {
-    alert(
-      "This would navigate to the Add/Edit Task screen, pre-filled with this task's data."
-    );
+    router.push({ pathname: "/task/[id]/edit", params: { id: task.id } });
   };
 
   return (
