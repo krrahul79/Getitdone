@@ -120,14 +120,23 @@ export default function HomeScreen() {
                 />
               </Pressable>
               <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.taskTitle,
-                    task.isComplete && styles.taskTitleComplete,
-                  ]}
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/task/[id]",
+                      params: { id: task.id },
+                    })
+                  }
                 >
-                  {task.title}
-                </Text>
+                  <Text
+                    style={[
+                      styles.taskTitle,
+                      task.isComplete && styles.taskTitleComplete,
+                    ]}
+                  >
+                    {task.title}
+                  </Text>
+                </Pressable>
                 <Text style={styles.taskGroup}>{task.groupName}</Text>
               </View>
               <Text
