@@ -179,12 +179,7 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
       {/* Floating Action Button */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => {
-          /* TODO: navigate to add task */
-        }}
-      >
+      <Pressable style={styles.fab} onPress={() => router.push("/task/add")}>
         <FontAwesome name="plus" size={32} color="#fff" />
       </Pressable>
       {/* Bottom Navigation Bar */}

@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 // Mock data for demo; in a real app, fetch by id
 const MOCK_TASKS = [
@@ -29,10 +29,11 @@ const MOCK_TASKS = [
   // ...add more tasks as needed
 ];
 
+const isEditMode = true; // Always in edit mode for this demo
+const task = MOCK_TASKS[0]; // For demo, just use the first task
+
 export default function EditTaskScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
-  const task = MOCK_TASKS.find((t) => t.id === Number(id));
 
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
@@ -42,17 +43,6 @@ export default function EditTaskScreen() {
   const [assignedTo, setAssignedTo] = useState(
     task?.assignedTo.map((u) => u.name).join(", ") ?? ""
   );
-
-  if (!task) {
-    return (
-      <View style={styles.centered}>
-        <Text style={{ color: "#ef4444", fontSize: 18 }}>Task not found.</Text>
-        <Pressable style={styles.closeBtn} onPress={() => router.back()}>
-          <FontAwesome name="times" size={24} color="#6b7280" />
-        </Pressable>
-      </View>
-    );
-  }
 
   const handleSave = () => {
     // TODO: Save changes to backend
