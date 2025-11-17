@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import LogoutModal from "../profile/logout-modal";
 
 const MOCK_USER = {
   id: "user123",
@@ -65,15 +66,11 @@ function SectionHeader({ title }: { title: string }) {
 
 export default function ProfileTabScreen() {
   const router = useRouter();
+  const [showLogoutModal, setShowLogoutModal] = React.useState(false);
   const handleEditProfile = () => router.push("/profile/edit");
   const handleNotifications = () => router.push("/profile/notifications");
-  const handleHelp = () =>
-    Alert.alert("Help & Feedback", "Navigating to Help Center...");
-  const handleLogout = () =>
-    Alert.alert(
-      "Log Out",
-      "This would open a modal to CONFIRM logout. (Logging out...)"
-    );
+  const handleHelp = () => router.push("/profile/help");
+  const handleLogout = () => setShowLogoutModal(true);
 
   return (
     <View style={styles.container}>
@@ -133,6 +130,10 @@ export default function ProfileTabScreen() {
           <Text style={styles.navLabelActive}>Profile</Text>
         </View>
       </View>
+      <LogoutModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+      />
     </View>
   );
 }
