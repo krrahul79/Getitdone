@@ -55,9 +55,10 @@ export default function GroupTaskListScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState("todo");
+  const [tasks, setTasks] = useState(MOCK_TASKS);
 
-  const todoTasks = MOCK_TASKS.filter((t) => !t.isComplete);
-  const completedTasks = MOCK_TASKS.filter((t) => t.isComplete);
+  const todoTasks = tasks.filter((t) => !t.isComplete);
+  const completedTasks = tasks.filter((t) => t.isComplete);
 
   const handleBack = () => router.back();
   const handleInvite = () => alert("Invite modal would open.");
@@ -66,7 +67,14 @@ export default function GroupTaskListScreen() {
   const handleAddTask = () =>
     alert("Navigate to Add Task screen for this group.");
   const handleSelectTask = (taskId: number) =>
-    alert(`Open details for task ${taskId}`);
+    router.push({ pathname: "/task/[id]", params: { id: taskId } });
+  const handleToggleComplete = (taskId: number) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, isComplete: !t.isComplete } : t
+      )
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -162,12 +170,21 @@ export default function GroupTaskListScreen() {
               onPress={() => handleSelectTask(task.id)}
               activeOpacity={0.85}
             >
-              <Ionicons
-                name={task.isComplete ? "checkmark-circle" : "ellipse-outline"}
-                size={26}
-                color={task.isComplete ? "#22c55e" : "#d1d5db"}
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleToggleComplete(task.id);
+                }}
                 style={{ marginRight: 12 }}
-              />
+              >
+                <Ionicons
+                  name={
+                    task.isComplete ? "checkmark-circle" : "ellipse-outline"
+                  }
+                  size={26}
+                  color={task.isComplete ? "#22c55e" : "#d1d5db"}
+                />
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Text
                   style={[
