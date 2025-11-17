@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  headerBtn: { width: 32, alignItems: "center" },
+  headerBtn: { width: 48, alignItems: "center", justifyContent: "center" },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
   },
-  headerSave: { fontSize: 17, fontWeight: "700", color: "#2563eb" },
+  headerSave: { fontSize: 18, fontWeight: "700", color: "#2563eb" },
   formBody: { flex: 1, padding: 24 },
   avatarSection: { alignItems: "center", marginBottom: 32 },
   avatarWrap: { position: "relative", alignItems: "center" },
