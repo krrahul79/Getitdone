@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { View, Text, Modal, StyleSheet, TouchableOpacity, TextInput, Animated, Easing } from "react-native";
+import {
+  View,
+  Text,
+  Modal,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Animated,
+  Easing,
+} from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 
 const COLORS = [
@@ -12,10 +21,21 @@ const COLORS = [
 ];
 
 const ICONS = [
-  "users", "heart", "briefcase", "home", "utensils", "paw", "plane", "car"
+  "users",
+  "heart",
+  "briefcase",
+  "home",
+  "utensils",
+  "paw",
+  "plane",
+  "car",
 ];
 
-export default function CreateGroupModal({ visible, onClose, onCreate }: {
+export default function CreateGroupModal({
+  visible,
+  onClose,
+  onCreate,
+}: {
   visible: boolean;
   onClose: () => void;
   onCreate: (group: { name: string; color: string; icon: string }) => void;
@@ -49,7 +69,21 @@ export default function CreateGroupModal({ visible, onClose, onCreate }: {
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.overlay}>
-        <Animated.View style={[styles.modal, { transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }) }] }] }>
+        <Animated.View
+          style={[
+            styles.modal,
+            {
+              transform: [
+                {
+                  translateY: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 500],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           {/* Header */}
           <View style={styles.headerRow}>
             <Text style={styles.header}>Create New Group</Text>
@@ -74,7 +108,14 @@ export default function CreateGroupModal({ visible, onClose, onCreate }: {
               {COLORS.map((c) => (
                 <TouchableOpacity
                   key={c.bg}
-                  style={[styles.colorCircle, { backgroundColor: c.bg, borderColor: selectedColor === c.ring ? c.ring : "#fff", borderWidth: selectedColor === c.ring ? 3 : 1 }]}
+                  style={[
+                    styles.colorCircle,
+                    {
+                      backgroundColor: c.bg,
+                      borderColor: selectedColor === c.ring ? c.ring : "#fff",
+                      borderWidth: selectedColor === c.ring ? 3 : 1,
+                    },
+                  ]}
                   onPress={() => setSelectedColor(c.ring)}
                 />
               ))}
@@ -85,10 +126,17 @@ export default function CreateGroupModal({ visible, onClose, onCreate }: {
               {ICONS.map((icon) => (
                 <TouchableOpacity
                   key={icon}
-                  style={[styles.iconBtn, selectedIcon === icon && styles.iconBtnSelected]}
+                  style={[
+                    styles.iconBtn,
+                    selectedIcon === icon && styles.iconBtnSelected,
+                  ]}
                   onPress={() => setSelectedIcon(icon)}
                 >
-                  <FontAwesome5 name={icon as any} size={22} color={selectedIcon === icon ? "#fff" : "#2563eb"} />
+                  <FontAwesome5
+                    name={icon as any}
+                    size={22}
+                    color={selectedIcon === icon ? "#fff" : "#2563eb"}
+                  />
                 </TouchableOpacity>
               ))}
             </View>

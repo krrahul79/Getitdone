@@ -1,6 +1,13 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import CreateGroupModal from "../components/CreateGroupModal";
 
 const mockGroups = [
@@ -42,9 +49,10 @@ type Group = {
 export default function GroupsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [groups, setGroups] = useState<Group[]>(mockGroups);
+  const router = useRouter();
 
   const handleGroupPress = (groupId: string) => {
-    // TODO: Navigate to group details screen
+    router.push({ pathname: "/groups/[id]", params: { id: groupId } });
   };
 
   const handleCreateGroup = () => {
@@ -55,7 +63,11 @@ export default function GroupsScreen() {
     setModalVisible(false);
   };
 
-  const handleModalCreate = (group: { name: string; color: string; icon: string }) => {
+  const handleModalCreate = (group: {
+    name: string;
+    color: string;
+    icon: string;
+  }) => {
     setGroups([
       ...groups,
       {
@@ -79,7 +91,10 @@ export default function GroupsScreen() {
           <Text style={styles.createBtnText}>Create New Group</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {groups.map((group) => (
           <TouchableOpacity
             key={group.id}
@@ -88,12 +103,22 @@ export default function GroupsScreen() {
             onPress={() => handleGroupPress(group.id)}
           >
             <View style={styles.cardLeft}>
-              <View style={[styles.groupIconCircle, { backgroundColor: group.color }]}>
+              <View
+                style={[
+                  styles.groupIconCircle,
+                  { backgroundColor: group.color },
+                ]}
+              >
                 <FontAwesome5 name={group.icon as any} size={22} color="#fff" />
               </View>
               <View>
                 <Text style={styles.groupName}>{group.name}</Text>
-                <Text style={styles.groupMeta}>{group.members} members{group.pendingTasks > 0 ? ` · ${group.pendingTasks} pending tasks` : ""}</Text>
+                <Text style={styles.groupMeta}>
+                  {group.members} members
+                  {group.pendingTasks > 0
+                    ? ` · ${group.pendingTasks} pending tasks`
+                    : ""}
+                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={24} color="#9ca3af" />
