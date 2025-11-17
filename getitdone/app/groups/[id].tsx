@@ -65,7 +65,7 @@ export default function GroupTaskListScreen() {
   const handleSettings = () =>
     router.push({ pathname: "/groups/[id]/settings", params: { id } });
   const handleAddTask = () =>
-    alert("Navigate to Add Task screen for this group.");
+    router.push({ pathname: "/task/add", params: { groupId: id } });
   const handleSelectTask = (taskId: number) =>
     router.push({ pathname: "/task/[id]", params: { id: taskId } });
   const handleToggleComplete = (taskId: number) => {
