@@ -167,7 +167,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb", // approx. 'bg-gradient-to-b from-white to-gray-100'
+    backgroundColor: "#f3f4f6", // match SafeAreaView and tab background
   },
   content: {
     flex: 1,
