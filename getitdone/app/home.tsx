@@ -152,7 +152,23 @@ export default function HomeScreen() {
           ))}
           {completeTasks.length > 0 && (
             <View style={{ marginTop: 24 }}>
-              <Text style={styles.completedTitle}>Completed</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={styles.completedTitle}>Completed</Text>
+                <Pressable
+                  onPress={() =>
+                    setTasks((prev) => prev.filter((t) => !t.isComplete))
+                  }
+                >
+                  <Text style={styles.clearAllText}>Clear All</Text>
+                </Pressable>
+              </View>
               {completeTasks.map((task) => (
                 <View key={task.id} style={styles.taskItem}>
                   <Pressable onPress={() => handleToggleComplete(task.id)}>
@@ -320,6 +336,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#6b7280",
     marginBottom: 8,
+  },
+  clearAllText: {
+    fontSize: 13,
+    color: "#ef4444",
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
   fab: {
     position: "absolute",
