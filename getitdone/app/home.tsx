@@ -10,48 +10,15 @@ import {
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { SupabaseService } from "../services/supabaseService";
 
-const mockUser = {
-  name: "Alex",
-};
-
-const initialTasks = [
-  {
-    id: 1,
-    title: "Buy groceries",
-    groupName: "Household",
-    dueDate: "2025-11-03",
-    isComplete: false,
-  },
-  {
-    id: 2,
-    title: "Take out the trash",
-    groupName: "Household",
-    dueDate: "2025-11-03",
-    isComplete: false,
-  },
-  {
-    id: 3,
-    title: "Plan weekend trip",
-    groupName: "Family",
-    dueDate: "2025-11-05",
-    isComplete: false,
-  },
-  {
-    id: 4,
-    title: "Call the plumber",
-    groupName: "Household",
-    dueDate: "2025-11-04",
-    isComplete: true,
-  },
-  {
-    id: 5,
-    title: "Pick up dry cleaning",
-    groupName: "Household",
-    dueDate: "2025-11-06",
-    isComplete: false,
-  },
-];
+interface Task {
+  id: number;
+  title: string;
+  groupName: string;
+  dueDate: string;
+  isComplete: boolean;
+}
 
 const { width } = Dimensions.get("window");
 
@@ -67,15 +34,63 @@ function getRelativeDate(dateStr: string) {
 }
 
 export default function HomeScreen() {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [userName, setUserName] = useState<string>("");
+  const [groupId, setGroupId] = useState<number | null>(null);
   const router = useRouter();
 
-  const handleToggleComplete = (taskId: number) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId ? { ...task, isComplete: !task.isComplete } : task
-      )
-    );
+  React.useEffect(() => {
+    const fetchUserNameAndTasks = async () => {
+      try {
+        const { profile } = await SupabaseService.getCurrentUser();
+        setUserName(profile?.full_name || "");
+        // Fetch user's groups
+        const groupsRes = await SupabaseService.getMyGroups();
+        const firstGroup =
+          groupsRes.data && groupsRes.data.length > 0
+            ? groupsRes.data[0]
+            : null;
+        if (firstGroup) {
+          setGroupId(firstGroup.id);
+          // Fetch tasks for the first group
+          const fetchedTasks = await SupabaseService.getGroupTasks(
+            firstGroup.id
+          );
+          // Map Supabase fields to local Task type
+          const mappedTasks = (fetchedTasks.data || []).map((task: any) => ({
+            id: task.id,
+            title: task.title,
+            groupName: firstGroup.name,
+            dueDate: task.due_date,
+            isComplete: task.status === "complete",
+          }));
+          setTasks(mappedTasks);
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error("Error fetching data from Supabase:", error);
+      }
+    };
+    fetchUserNameAndTasks();
+  }, []);
+
+  const handleToggleComplete = async (taskId: number) => {
+    try {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+      const newStatus = task.isComplete ? "incomplete" : "complete";
+      // Update status in Supabase
+      await SupabaseService.updateTaskStatus(taskId, newStatus);
+      // Update local state
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, isComplete: !t.isComplete } : t
+        )
+      );
+    } catch (error) {
+      console.error("Error updating task completion:", error);
+    }
   };
 
   const incompleteTasks = tasks.filter((t) => !t.isComplete);
@@ -87,7 +102,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerWelcome}>Welcome back,</Text>
-          <Text style={styles.headerName}>{mockUser.name}</Text>
+          <Text style={styles.headerName}>{userName}</Text>
         </View>
         <View style={styles.headerAvatar}>
           <FontAwesome name="user" size={28} color="#6b7280" />
@@ -109,67 +124,28 @@ export default function HomeScreen() {
         {/* Task List */}
         <View style={styles.tasksSection}>
           <Text style={styles.tasksTitle}>Your Tasks</Text>
-          {incompleteTasks.map((task) => (
-            <View key={task.id} style={styles.taskItem}>
-              <Pressable onPress={() => handleToggleComplete(task.id)}>
-                <FontAwesome
-                  name={task.isComplete ? "check-circle" : "circle"}
-                  size={24}
-                  color={task.isComplete ? "#10b981" : "#d1d5db"}
-                  style={{ marginRight: 12 }}
-                />
-              </Pressable>
-              <View style={{ flex: 1 }}>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: "/task/[id]",
-                      params: { id: task.id },
-                    })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.taskTitle,
-                      task.isComplete && styles.taskTitleComplete,
-                    ]}
-                  >
-                    {task.title}
-                  </Text>
-                </Pressable>
-                <Text style={styles.taskGroup}>{task.groupName}</Text>
-              </View>
-              <Text
-                style={[
-                  styles.taskDue,
-                  getRelativeDate(task.dueDate) === "Today" &&
-                    styles.taskDueToday,
-                ]}
-              >
-                {getRelativeDate(task.dueDate)}
+          {incompleteTasks.length === 0 && completeTasks.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <FontAwesome
+                name="smile-o"
+                size={64}
+                color="#93c5fd"
+                style={{ marginBottom: 16 }}
+              />
+              <Text style={styles.emptyStateTitle}>No tasks yet!</Text>
+              <Text style={styles.emptyStateText}>
+                Enjoy your free time or add a new task to get started.
               </Text>
-            </View>
-          ))}
-          {completeTasks.length > 0 && (
-            <View style={{ marginTop: 24 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 8,
-                }}
+              <Pressable
+                style={styles.emptyStateButton}
+                onPress={() => router.push("/task/add")}
               >
-                <Text style={styles.completedTitle}>Completed</Text>
-                <Pressable
-                  onPress={() =>
-                    setTasks((prev) => prev.filter((t) => !t.isComplete))
-                  }
-                >
-                  <Text style={styles.clearAllText}>Clear All</Text>
-                </Pressable>
-              </View>
-              {completeTasks.map((task) => (
+                <Text style={styles.emptyStateButtonText}>Add Task</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {incompleteTasks.map((task) => (
                 <View key={task.id} style={styles.taskItem}>
                   <Pressable onPress={() => handleToggleComplete(task.id)}>
                     <FontAwesome
@@ -180,24 +156,90 @@ export default function HomeScreen() {
                     />
                   </Pressable>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.taskTitle, styles.taskTitleComplete]}>
-                      {task.title}
-                    </Text>
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: "/task/[id]",
+                          params: { id: task.id },
+                        })
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.taskTitle,
+                          task.isComplete && styles.taskTitleComplete,
+                        ]}
+                      >
+                        {task.title}
+                      </Text>
+                    </Pressable>
                     <Text style={styles.taskGroup}>{task.groupName}</Text>
                   </View>
-                  <Text style={styles.taskDue}>
+                  <Text
+                    style={[
+                      styles.taskDue,
+                      getRelativeDate(task.dueDate) === "Today" &&
+                        styles.taskDueToday,
+                    ]}
+                  >
                     {getRelativeDate(task.dueDate)}
                   </Text>
                 </View>
               ))}
-            </View>
+              {completeTasks.length > 0 && (
+                <View style={{ marginTop: 24 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text style={styles.completedTitle}>Completed</Text>
+                    <Pressable
+                      onPress={() =>
+                        setTasks((prev) => prev.filter((t) => !t.isComplete))
+                      }
+                    >
+                      <Text style={styles.clearAllText}>Clear All</Text>
+                    </Pressable>
+                  </View>
+                  {completeTasks.map((task) => (
+                    <View key={task.id} style={styles.taskItem}>
+                      <Pressable onPress={() => handleToggleComplete(task.id)}>
+                        <FontAwesome
+                          name={task.isComplete ? "check-circle" : "circle"}
+                          size={24}
+                          color={task.isComplete ? "#10b981" : "#d1d5db"}
+                          style={{ marginRight: 12 }}
+                        />
+                      </Pressable>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[styles.taskTitle, styles.taskTitleComplete]}
+                        >
+                          {task.title}
+                        </Text>
+                        <Text style={styles.taskGroup}>{task.groupName}</Text>
+                      </View>
+                      <Text style={styles.taskDue}>
+                        {getRelativeDate(task.dueDate)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
       {/* Floating Action Button */}
-      <Pressable style={styles.fab} onPress={() => router.push("/task/add")}>
-        <FontAwesome name="plus" size={32} color="#fff" />
-      </Pressable>
+      {(incompleteTasks.length > 0 || completeTasks.length > 0) && (
+        <Pressable style={styles.fab} onPress={() => router.push("/task/add")}>
+          <FontAwesome name="plus" size={32} color="#fff" />
+        </Pressable>
+      )}
       {/* Bottom Navigation Bar */}
       <View style={styles.bottomNav}>
         <Pressable style={styles.navItem}>
@@ -395,5 +437,44 @@ const styles = StyleSheet.create({
     color: "#2563eb",
     fontWeight: "700",
     marginTop: 2,
+  },
+  emptyStateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginTop: 24,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#2563eb",
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    color: "#6b7280",
+    marginBottom: 20,
+    textAlign: "center",
+    paddingHorizontal: 24,
+  },
+  emptyStateButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  emptyStateButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

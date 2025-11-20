@@ -10,6 +10,7 @@ import {
   Easing,
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { SupabaseService } from "../../services/supabaseService";
 
 const COLORS = [
   { bg: "#ef4444", ring: "#ef4444" }, // red
@@ -43,6 +44,8 @@ export default function CreateGroupModal({
   const [groupName, setGroupName] = useState("");
   const [selectedColor, setSelectedColor] = useState(COLORS[1].ring); // blue default
   const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const slideAnim = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
@@ -58,12 +61,31 @@ export default function CreateGroupModal({
     }
   }, [visible]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!groupName.trim()) return;
-    onCreate({ name: groupName, color: selectedColor, icon: selectedIcon });
-    setGroupName("");
-    setSelectedColor(COLORS[1].ring);
-    setSelectedIcon(ICONS[0]);
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await SupabaseService.createGroup(
+        groupName,
+        selectedIcon,
+        selectedColor
+      );
+      if (error) {
+        setError("Failed to create group. Please try again.");
+        setLoading(false);
+        return;
+      }
+      onCreate({ name: groupName, color: selectedColor, icon: selectedIcon });
+      setGroupName("");
+      setSelectedColor(COLORS[1].ring);
+      setSelectedIcon(ICONS[0]);
+      setLoading(false);
+      onClose();
+    } catch (e) {
+      setError("Failed to create group. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -141,9 +163,22 @@ export default function CreateGroupModal({
               ))}
             </View>
             {/* Create Button */}
-            <TouchableOpacity style={styles.createBtn} onPress={handleSubmit}>
-              <Text style={styles.createBtnText}>Create Group</Text>
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.createBtnText}>
+                {loading ? "Creating..." : "Create Group"}
+              </Text>
             </TouchableOpacity>
+            {error && (
+              <Text
+                style={{ color: "#ef4444", marginTop: 8, textAlign: "center" }}
+              >
+                {error}
+              </Text>
+            )}
           </View>
         </Animated.View>
       </View>

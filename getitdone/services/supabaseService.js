@@ -183,7 +183,7 @@ export const SupabaseService = {
   // --- GROUPS ---
   async getMyGroups() {
     const deviceId = await getDeviceId();
-
+    const supabase = await getSupabaseClient(); // Ensure supabase is initialized
     // Get Profile UUID
     const { data: profile } = await supabase
       .from("profiles")

@@ -6,9 +6,13 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
+  I18nManager,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const MOCK_GROUPS = [
   { id: "g1", name: "Household" },
@@ -49,6 +53,8 @@ export default function AddEditTaskScreen() {
   const [selectedGroup, setSelectedGroup] = useState<string>(MOCK_GROUPS[0].id);
   const [assignedMembers, setAssignedMembers] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateValue, setDateValue] = useState<Date | null>(null);
 
   useEffect(() => {
     if (isEditMode) {
@@ -57,6 +63,7 @@ export default function AddEditTaskScreen() {
       setSelectedGroup(MOCK_EDIT_TASK.selectedGroup);
       setAssignedMembers([...MOCK_EDIT_TASK.assignedMembers]);
       setDueDate(MOCK_EDIT_TASK.dueDate);
+      setDateValue(new Date(MOCK_EDIT_TASK.dueDate));
     }
   }, [isEditMode]);
 
@@ -87,106 +94,160 @@ export default function AddEditTaskScreen() {
     router.back();
   };
 
+  // Format date for display
+  const formatDateTime = (date: Date | null) => {
+    if (!date) return "Select date & time";
+    // Use locale from device
+    const locale = I18nManager.isRTL ? "ar" : undefined;
+    return date.toLocaleString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setDateValue(selectedDate);
+      setDueDate(selectedDate.toISOString().slice(0, 16).replace("T", " "));
+    }
+  };
+
   return (
-    <View style={styles.fullScreen}>
-      {/* Header */}
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => router.back()}>
-          <FontAwesome name="times" size={24} color="#6b7280" />
-        </Pressable>
-        <Text style={styles.headerTitle}>
-          {isEditMode ? "Edit Task" : "New Task"}
-        </Text>
-        <Pressable onPress={handleSave}>
-          <Text style={styles.headerSaveText}>Save</Text>
-        </Pressable>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={80}
+    >
+      <View style={styles.fullScreen}>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => router.back()}>
+            <FontAwesome name="times" size={24} color="#6b7280" />
+          </Pressable>
+          <Text style={styles.headerTitle}>
+            {isEditMode ? "Edit Task" : "New Task"}
+          </Text>
+          <Pressable onPress={handleSave}>
+            <Text style={styles.headerSaveText}>Save</Text>
+          </Pressable>
+        </View>
+        {/* Form Body */}
+        <ScrollView
+          style={styles.formScroll}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Title</Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="e.g., Do laundry"
+            />
+          </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Description (Optional)</Text>
+            <TextInput
+              style={[styles.input, { height: 80 }]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="e.g., Separate whites and colors"
+              multiline
+            />
+          </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Group</Text>
+            <View style={styles.selectBox}>
+              {MOCK_GROUPS.map((group) => (
+                <Pressable
+                  key={group.id}
+                  style={[
+                    styles.selectOption,
+                    selectedGroup === group.id && styles.selectOptionActive,
+                  ]}
+                  onPress={() => setSelectedGroup(group.id)}
+                >
+                  <Text
+                    style={[
+                      styles.selectOptionText,
+                      selectedGroup === group.id &&
+                        styles.selectOptionTextActive,
+                    ]}
+                  >
+                    {group.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Assign to</Text>
+            <View style={styles.chipRow}>
+              {availableMembers.map((member: { id: string; name: string }) => (
+                <Pressable
+                  key={member.id}
+                  style={[
+                    styles.chip,
+                    assignedMembers.includes(member.id)
+                      ? styles.chipActive
+                      : styles.chipInactive,
+                  ]}
+                  onPress={() => handleMemberToggle(member.id)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      assignedMembers.includes(member.id) &&
+                        styles.chipTextActive,
+                    ]}
+                  >
+                    {member.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Due Date</Text>
+            <View style={styles.dateRow}>
+              <Pressable
+                style={[styles.input, styles.dateInput, { flex: 1 }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text
+                  style={{
+                    color: dateValue ? "#1f2937" : "#6b7280",
+                    fontSize: 16,
+                  }}
+                >
+                  {formatDateTime(dateValue)}
+                </Text>
+                <FontAwesome
+                  name="calendar"
+                  size={18}
+                  color="#6b7280"
+                  style={{ marginLeft: 8 }}
+                />
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={dateValue || new Date()}
+                  mode="datetime"
+                  display="default"
+                  onChange={handleDateChange}
+                  style={styles.datePicker}
+                />
+              )}
+            </View>
+          </View>
+        </ScrollView>
       </View>
-      {/* Form Body */}
-      <ScrollView
-        style={styles.formScroll}
-        contentContainerStyle={{ paddingBottom: 32 }}
-      >
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Title</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g., Do laundry"
-          />
-        </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Description (Optional)</Text>
-          <TextInput
-            style={[styles.input, { height: 80 }]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="e.g., Separate whites and colors"
-            multiline
-          />
-        </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Group</Text>
-          <View style={styles.selectBox}>
-            {MOCK_GROUPS.map((group) => (
-              <Pressable
-                key={group.id}
-                style={[
-                  styles.selectOption,
-                  selectedGroup === group.id && styles.selectOptionActive,
-                ]}
-                onPress={() => setSelectedGroup(group.id)}
-              >
-                <Text
-                  style={[
-                    styles.selectOptionText,
-                    selectedGroup === group.id && styles.selectOptionTextActive,
-                  ]}
-                >
-                  {group.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Assign to</Text>
-          <View style={styles.chipRow}>
-            {availableMembers.map((member: { id: string; name: string }) => (
-              <Pressable
-                key={member.id}
-                style={[
-                  styles.chip,
-                  assignedMembers.includes(member.id)
-                    ? styles.chipActive
-                    : styles.chipInactive,
-                ]}
-                onPress={() => handleMemberToggle(member.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    assignedMembers.includes(member.id) &&
-                      styles.chipTextActive,
-                  ]}
-                >
-                  {member.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Due Date</Text>
-          <TextInput
-            style={styles.input}
-            value={dueDate}
-            onChangeText={setDueDate}
-            placeholder="YYYY-MM-DD"
-          />
-        </View>
-      </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -289,5 +350,31 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: "#fff",
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  dateInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingRight: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    minHeight: 48,
+    marginBottom: 0,
+  },
+  datePicker: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 48,
+    zIndex: 10,
   },
 });
