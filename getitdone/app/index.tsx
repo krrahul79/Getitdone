@@ -1,7 +1,6 @@
 import {
   View,
   Text,
-  Pressable,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -17,6 +16,9 @@ import {
   Inter_700Bold,
   Inter_800ExtraBold,
 } from "@expo-google-fonts/inter";
+import * as Device from "expo-device";
+import * as SecureStore from "expo-secure-store";
+import { SupabaseService } from "../services/supabaseService";
 
 export default function WelcomeScreen() {
   // Create animated values for each element group
@@ -25,30 +27,42 @@ export default function WelcomeScreen() {
   const subtitleAnim = useRef(new Animated.Value(0)).current;
   const buttonsAnim = useRef(new Animated.Value(0)).current;
 
-  // Run animation on component mount
+  const router = useRouter();
+
+  // Device-based identity logic
   useEffect(() => {
+    const checkProfileName = async () => {
+      const { profile } = await SupabaseService.getCurrentUser();
+      if (profile?.full_name && profile.full_name.trim()) {
+        router.replace("/tabs/home");
+      } else {
+        router.replace("/onboarding");
+      }
+    };
+    checkProfileName();
+
+    // Run animation on component mount
     // Animated.stagger(delay, [animation1, animation2, ...])
     Animated.stagger(200, [
-      // 200ms delay between each, matches your 0.2s, 0.4s, 0.6s
       Animated.timing(logoAnim, {
         toValue: 1,
-        duration: 800, // 1s ease-in-out is a bit slow, 800ms feels better
-        useNativeDriver: true, // Set to true for best performance on mobile
+        duration: 800,
+        useNativeDriver: true,
       }),
       Animated.timing(titleAnim, {
         toValue: 1,
         duration: 800,
-        useNativeDriver: true, // Set to true for best performance on mobile
+        useNativeDriver: true,
       }),
       Animated.timing(subtitleAnim, {
         toValue: 1,
         duration: 800,
-        useNativeDriver: true, // Set to true for best performance on mobile
+        useNativeDriver: true,
       }),
       Animated.timing(buttonsAnim, {
         toValue: 1,
         duration: 800,
-        useNativeDriver: true, // Set to true for best performance on mobile
+        useNativeDriver: true,
       }),
     ]).start();
   }, []); // Empty array ensures this runs only once
@@ -78,8 +92,6 @@ export default function WelcomeScreen() {
   if (!fontsLoaded) {
     return null; // Wait for font to load
   }
-
-  const router = useRouter();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -132,32 +144,7 @@ export default function WelcomeScreen() {
             Organize your household tasks, together.
           </Animated.Text>
         </View>
-
-        {/* Bottom Section: Action Buttons */}
-        <Animated.View
-          style={[styles.bottomSection, animatedStyle(buttonsAnim)]}
-        >
-          <Pressable
-            accessibilityLabel="Log In"
-            style={({ pressed }) => [
-              styles.button,
-              styles.logInButton,
-              pressed && { backgroundColor: "#eff6ff" },
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={() => router.push({ pathname: "onboarding" })}
-          >
-            <Text
-              style={[
-                styles.buttonText,
-                styles.logInButtonText,
-                styles.interFont,
-              ]}
-            >
-              Log In
-            </Text>
-          </Pressable>
-        </Animated.View>
+        {/* No action buttons, device-based identity is automatic */}
       </View>
     </SafeAreaView>
   );

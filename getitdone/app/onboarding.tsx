@@ -8,6 +8,9 @@ import {
   SafeAreaView,
   StatusBar,
   Animated,
+  TextInput,
+  Modal,
+  ActivityIndicator,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import {
@@ -18,6 +21,7 @@ import {
   Inter_800ExtraBold,
 } from "@expo-google-fonts/inter";
 import { useRouter } from "expo-router";
+import { SupabaseService } from "../services/supabaseService";
 
 const tutorialSteps = [
   {
@@ -54,9 +58,25 @@ export default function OnboardingScreen() {
   });
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  // Animation for title and description
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const titleAnim = useRef(new Animated.Value(0)).current;
   const descAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // On mount, fetch profile name
+    const fetchProfile = async () => {
+      const { profile } = await SupabaseService.getCurrentUser();
+      if (profile?.full_name && profile.full_name.trim()) {
+        router.replace("/tabs/home");
+      } else {
+        setProfileName(null);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   useEffect(() => {
     // Reset animations when step changes
@@ -77,7 +97,7 @@ export default function OnboardingScreen() {
   }, [currentStep]);
 
   // Helper for animated style
-  const animatedStyle = (animValue) => ({
+  const animatedStyle = (animValue: Animated.Value) => ({
     opacity: animValue,
     transform: [
       {
@@ -93,12 +113,29 @@ export default function OnboardingScreen() {
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      router.replace("/tabs/home"); // Go to dashboard/home tab
+      if (profileName && profileName.trim()) {
+        router.replace("/tabs/home");
+      } else {
+        setShowNameModal(true);
+      }
     }
   };
 
   const handleSkip = () => {
-    router.replace("/tabs/home"); // Go to dashboard/home tab
+    if (profileName && profileName.trim()) {
+      router.replace("/tabs/home");
+    } else {
+      setShowNameModal(true);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    await SupabaseService.updateProfile({ full_name: name.trim() });
+    setSaving(false);
+    setShowNameModal(false);
+    router.replace("/tabs/home");
   };
 
   // Step dots
@@ -165,6 +202,32 @@ export default function OnboardingScreen() {
           </Text>
         </Pressable>
       </View>
+      {/* Name Modal */}
+      <Modal visible={showNameModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Set Your Name</Text>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Enter your name"
+              value={name}
+              onChangeText={setName}
+              autoFocus
+            />
+            <Pressable
+              style={[styles.nextButton, !name.trim() && { opacity: 0.5 }]}
+              onPress={handleSaveName}
+              disabled={!name.trim() || saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.nextButtonText}>Save & Continue</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -264,5 +327,41 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     fontSize: 18,
     color: "#fff",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "80%",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 22,
+    marginBottom: 16,
+    color: "#1f2937",
+  },
+  nameInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 17,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 20,
+    color: "#1f2937",
+    backgroundColor: "#f9fafb",
   },
 });
