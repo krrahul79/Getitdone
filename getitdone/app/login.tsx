@@ -78,6 +78,7 @@ export default function LoginScreen() {
               borderWidth: 2,
               borderColor: "#ef4444", // Red border for visibility
               borderRadius: 6,
+              width: 25,
             }}
             disabled={loading}
           />
