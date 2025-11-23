@@ -5,6 +5,7 @@ import {
   StatusBar,
   StyleSheet,
   Animated, // Import Animated
+  TouchableOpacity,
 } from "react-native"; // Reverted to "react-native" for your mobile app
 import { FontAwesome } from "@expo/vector-icons"; // Correct path for mobile
 import { useRouter } from "expo-router";
@@ -29,20 +30,10 @@ export default function WelcomeScreen() {
 
   const router = useRouter();
 
-  // Device-based identity logic
+  // Remove device-based identity logic
+  // useEffect for animation only
   useEffect(() => {
-    const checkProfileName = async () => {
-      const { profile } = await SupabaseService.getCurrentUser();
-      if (profile?.full_name && profile.full_name.trim()) {
-        router.replace("/tabs/home");
-      } else {
-        router.replace("/onboarding");
-      }
-    };
-    checkProfileName();
-
     // Run animation on component mount
-    // Animated.stagger(delay, [animation1, animation2, ...])
     Animated.stagger(200, [
       Animated.timing(logoAnim, {
         toValue: 1,
@@ -144,7 +135,28 @@ export default function WelcomeScreen() {
             Organize your household tasks, together.
           </Animated.Text>
         </View>
-        {/* No action buttons, device-based identity is automatic */}
+        {/* Bottom Section: Get Started Button */}
+        <Animated.View
+          style={[styles.bottomSection, animatedStyle(buttonsAnim)]}
+        >
+          <TouchableOpacity
+            style={[styles.button, styles.signUpButton]}
+            activeOpacity={0.8}
+            onPress={() => router.replace("/login" as any)}
+            //onPress={() => router.replace("/flagtest" as any)}
+            accessibilityLabel="Get Started"
+          >
+            <Text
+              style={[
+                styles.buttonText,
+                styles.signUpButtonText,
+                styles.interFont,
+              ]}
+            >
+              Get Started
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
