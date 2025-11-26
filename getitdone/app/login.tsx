@@ -6,132 +6,159 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { FontAwesome } from "@expo/vector-icons";
-import PhoneInput from "react-native-phone-number-input";
 
 export default function LoginScreen() {
-  const [phone, setPhone] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const phoneInput = React.useRef<PhoneInput>(null);
 
-  const handleContinue = async () => {
-    setLoading(true);
-    // TODO: Implement Supabase OTP logic here
-    setTimeout(() => {
-      setLoading(false);
-      router.replace("/onboarding" as any); // Proceed to onboarding after login
-    }, 1200);
+  // Dummy SupabaseService
+  type SupabaseResponse = { error: null | { message: string } };
+  const SupabaseService = {
+    signIn: async (
+      email: string,
+      password: string
+    ): Promise<SupabaseResponse> => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (email && password) {
+            resolve({ error: null });
+          } else {
+            resolve({ error: { message: "Invalid credentials." } });
+          }
+        }, 1200);
+      });
+    },
+    signUp: async (
+      email: string,
+      password: string,
+      fullName: string
+    ): Promise<SupabaseResponse> => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (email && password && fullName) {
+            resolve({ error: null });
+          } else {
+            resolve({ error: { message: "Missing fields." } });
+          }
+        }, 1200);
+      });
+    },
   };
 
-  const handleAppleLogin = () => {
-    // TODO: Implement Apple ID login logic
-    router.replace("/onboarding" as any); // Placeholder
+  const handleAuth = async () => {
+    if (!email || !password || (isSignUp && !fullName)) {
+      alert("Please fill in all fields");
+      return;
+    }
+    setLoading(true);
+    let error: null | { message: string } = null;
+    if (isSignUp) {
+      const res = await SupabaseService.signUp(email, password, fullName);
+      error = res.error;
+    } else {
+      const res = await SupabaseService.signIn(email, password);
+      error = res.error;
+    }
+    setLoading(false);
+    if (error) {
+      alert(`Authentication Failed: ${error.message}`);
+    } else {
+      router.replace("/onboarding" as any);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.content}>
-        <Text style={[styles.title, styles.interFont]}>Sign In</Text>
-        <Text style={[styles.subtitle, styles.interFont]}>
-          Log in to continue organizing your household tasks.
-        </Text>
-        <View style={styles.inputContainer}>
-          <PhoneInput
-            ref={phoneInput}
-            defaultValue={phone}
-            defaultCode="US"
-            layout="first"
-            onChangeFormattedText={setPhone}
-            containerStyle={{
-              width: "100%",
-              borderRadius: 10,
-              backgroundColor: "#fff",
-              borderWidth: 1,
-              borderColor: "#d1d5db",
-            }}
-            textContainerStyle={{
-              borderRadius: 10,
-              backgroundColor: "#e0e7ff", // Changed to light color for visibility
-              paddingHorizontal: 8,
-            }}
-            textInputStyle={{
-              fontFamily: "Inter",
-              fontSize: 17,
-              color: "#111827",
-              paddingLeft: 0,
-              paddingRight: 0,
-              margin: 0,
-            }}
-            codeTextStyle={{
-              fontFamily: "Inter",
-              fontSize: 17,
-              marginLeft: 2,
-              marginRight: 2,
-              color: "#111827",
-            }}
-            flagButtonStyle={{
-              borderWidth: 2,
-              borderColor: "#ef4444", // Red border for visibility
-              borderRadius: 6,
-              width: 25,
-            }}
-            disabled={loading}
-          />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={48}
+      >
+        <View style={styles.content}>
+          <View style={{ marginBottom: 32 }}>
+            <Text style={styles.title}>
+              {isSignUp ? "Create Account" : "Welcome Back"}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isSignUp
+                ? "Sign up to start organizing."
+                : "Log in to see your tasks."}
+            </Text>
+          </View>
+          <View style={styles.form}>
+            {isSignUp && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  editable={!loading}
+                />
+              </View>
+            )}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="john@example.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!loading}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                editable={!loading}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.button, loading && { opacity: 0.7 }]}
+              onPress={handleAuth}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {isSignUp ? "Sign Up" : "Log In"}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.toggleButton}
+              onPress={() => setIsSignUp(!isSignUp)}
+              disabled={loading}
+            >
+              <Text style={styles.toggleText}>
+                {isSignUp
+                  ? "Already have an account? Log In"
+                  : "New here? Create Account"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            styles.signUpButton,
-            loading && { opacity: 0.6 },
-          ]}
-          activeOpacity={0.8}
-          onPress={handleContinue}
-          disabled={loading || phone.length < 8}
-          accessibilityLabel="Continue with Mobile Number"
-        >
-          <Text
-            style={[
-              styles.buttonText,
-              styles.signUpButtonText,
-              styles.interFont,
-            ]}
-          >
-            Continue
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.dividerContainer}>
-          <View style={styles.divider} />
-          <Text style={[styles.orText, styles.interFont]}>OR</Text>
-          <View style={styles.divider} />
-        </View>
-        <TouchableOpacity
-          style={[styles.button, styles.appleButton]}
-          activeOpacity={0.8}
-          onPress={handleAppleLogin}
-          accessibilityLabel="Sign in with Apple"
-        >
-          <FontAwesome
-            name="apple"
-            size={22}
-            color="#fff"
-            style={{ marginRight: 8 }}
-          />
-          <Text
-            style={[
-              styles.buttonText,
-              styles.appleButtonText,
-              styles.interFont,
-            ]}
-          >
-            Sign in with Apple
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -145,79 +172,78 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 32,
+    padding: 24,
+    backgroundColor: "#fff",
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "800",
     color: "#1f2937",
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: "left",
   },
   subtitle: {
     fontSize: 16,
     color: "#6b7280",
-    marginBottom: 32,
-    textAlign: "center",
-    maxWidth: 320,
+    marginBottom: 0,
+    textAlign: "left",
   },
-  inputContainer: {
+  form: {
     width: "100%",
-    marginBottom: 24,
+    maxWidth: 400,
+    gap: 12,
+  },
+  inputGroup: {
+    marginBottom: 12,
   },
   label: {
-    fontSize: 15,
+    fontSize: 12,
+    fontWeight: "700",
     color: "#374151",
     marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  input: {
+    width: "100%",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 17,
+    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    marginBottom: 0,
   },
   button: {
-    width: "100%",
-    flexDirection: "row",
+    backgroundColor: "#2563eb",
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 8,
+    marginBottom: 0,
+    shadowColor: "#2563eb",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.27,
-    shadowRadius: 4.65,
-    elevation: 6,
-  },
-  signUpButton: {
-    backgroundColor: "#2563eb",
-  },
-  signUpButtonText: {
-    color: "#fff",
   },
   buttonText: {
+    color: "#fff",
     fontSize: 18,
     fontWeight: "700",
-    textAlign: "center",
   },
-  dividerContainer: {
-    flexDirection: "row",
+  toggleButton: {
+    marginTop: 16,
     alignItems: "center",
-    marginVertical: 8,
-    width: "100%",
-    justifyContent: "center",
   },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#d1d5db",
-    marginHorizontal: 8,
-  },
-  orText: {
-    fontSize: 15,
-    color: "#6b7280",
-  },
-  appleButton: {
-    backgroundColor: "#111",
-  },
-  appleButtonText: {
-    color: "#fff",
-  },
-  interFont: {
-    fontFamily: "Inter",
+  toggleText: {
+    color: "#2563eb",
+    fontWeight: "600",
+    fontSize: 16,
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
 });

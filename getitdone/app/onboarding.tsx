@@ -58,8 +58,6 @@ export default function OnboardingScreen() {
   });
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const titleAnim = useRef(new Animated.Value(0)).current;
@@ -113,28 +111,11 @@ export default function OnboardingScreen() {
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      if (profileName && profileName.trim()) {
-        router.replace("/tabs/home");
-      } else {
-        setShowNameModal(true);
-      }
+      router.replace("/tabs/home");
     }
   };
 
   const handleSkip = () => {
-    if (profileName && profileName.trim()) {
-      router.replace("/tabs/home");
-    } else {
-      setShowNameModal(true);
-    }
-  };
-
-  const handleSaveName = async () => {
-    if (!name.trim()) return;
-    setSaving(true);
-    await SupabaseService.updateProfile({ full_name: name.trim() });
-    setSaving(false);
-    setShowNameModal(false);
     router.replace("/tabs/home");
   };
 
@@ -202,32 +183,7 @@ export default function OnboardingScreen() {
           </Text>
         </Pressable>
       </View>
-      {/* Name Modal */}
-      <Modal visible={showNameModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set Your Name</Text>
-            <TextInput
-              style={styles.nameInput}
-              placeholder="Enter your name"
-              value={name}
-              onChangeText={setName}
-              autoFocus
-            />
-            <Pressable
-              style={[styles.nextButton, !name.trim() && { opacity: 0.5 }]}
-              onPress={handleSaveName}
-              disabled={!name.trim() || saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.nextButtonText}>Save & Continue</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      {/* Removed Name Modal */}
     </SafeAreaView>
   );
 }
