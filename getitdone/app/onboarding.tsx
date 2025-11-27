@@ -59,7 +59,6 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [profileName, setProfileName] = useState<string | null>(null);
   const titleAnim = useRef(new Animated.Value(0)).current;
   const descAnim = useRef(new Animated.Value(0)).current;
 
@@ -69,8 +68,6 @@ export default function OnboardingScreen() {
       const { profile } = await SupabaseService.getCurrentUser();
       if (profile?.full_name && profile.full_name.trim()) {
         router.replace("/tabs/home");
-      } else {
-        setProfileName(null);
       }
     };
     fetchProfile();
@@ -107,7 +104,7 @@ export default function OnboardingScreen() {
     ],
   });
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -183,7 +180,6 @@ export default function OnboardingScreen() {
           </Text>
         </Pressable>
       </View>
-      {/* Removed Name Modal */}
     </SafeAreaView>
   );
 }
@@ -283,41 +279,5 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     fontSize: 18,
     color: "#fff",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    width: "80%",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 22,
-    marginBottom: 16,
-    color: "#1f2937",
-  },
-  nameInput: {
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 17,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 20,
-    color: "#1f2937",
-    backgroundColor: "#f9fafb",
   },
 });

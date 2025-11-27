@@ -45,6 +45,9 @@ const getSupabaseClient = async () => {
   });
 };
 
+// --- Supabase Auth Client ---
+export const supabaseAuthClient = createClient(supabaseUrl, supabaseAnonKey);
+
 export const SupabaseService = {
   // --- INITIALIZATION (The "Lazy Login") ---
   // Call this in your root _layout.tsx or App.js on load
@@ -85,6 +88,45 @@ export const SupabaseService = {
     } catch (e) {
       console.error("Init Error:", e);
       return { data: null, error: e };
+    }
+  },
+
+  // --- AUTH ---
+  async getCurrentUser() {
+    // Use Supabase Auth session
+    const session = supabaseAuthClient.auth.getSession
+      ? (await supabaseAuthClient.auth.getSession()).data.session
+      : null;
+    const user = session?.user || null;
+    let twoFARequired = false;
+    // Supabase returns a 'challenge' if 2FA is required
+    if (session?.user && session?.user?.challenge) {
+      twoFARequired = session.user.challenge === "totp";
+    }
+    // Fetch profile by user id
+    let profile = null;
+    if (user) {
+      const { data } = await supabaseAuthClient
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      profile = data;
+    }
+    return { user, profile, twoFARequired };
+  },
+
+  async verifyTOTP(code) {
+    // Supabase TOTP verification
+    try {
+      const { data, error } = await supabaseAuthClient.auth.verifyOtp({
+        type: "totp",
+        token: code,
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
     }
   },
 

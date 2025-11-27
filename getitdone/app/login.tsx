@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { supabaseAuthClient } from "../services/supabaseService";
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -21,40 +22,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Dummy SupabaseService
-  type SupabaseResponse = { error: null | { message: string } };
-  const SupabaseService = {
-    signIn: async (
-      email: string,
-      password: string
-    ): Promise<SupabaseResponse> => {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          if (email && password) {
-            resolve({ error: null });
-          } else {
-            resolve({ error: { message: "Invalid credentials." } });
-          }
-        }, 1200);
-      });
-    },
-    signUp: async (
-      email: string,
-      password: string,
-      fullName: string
-    ): Promise<SupabaseResponse> => {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          if (email && password && fullName) {
-            resolve({ error: null });
-          } else {
-            resolve({ error: { message: "Missing fields." } });
-          }
-        }, 1200);
-      });
-    },
-  };
-
   const handleAuth = async () => {
     if (!email || !password || (isSignUp && !fullName)) {
       alert("Please fill in all fields");
@@ -62,12 +29,58 @@ export default function LoginScreen() {
     }
     setLoading(true);
     let error: null | { message: string } = null;
+    let session, user;
     if (isSignUp) {
-      const res = await SupabaseService.signUp(email, password, fullName);
-      error = res.error;
+      // Real Supabase sign up
+      const { data, error: signUpError } = await supabaseAuthClient.auth.signUp(
+        {
+          email,
+          password,
+          options: { data: { full_name: fullName } },
+        }
+      );
+      console.log("SignUp response:", data, signUpError);
+      error = signUpError ? { message: signUpError.message } : null;
+      session = data?.session;
+      user = data?.user;
+      // Wait for profile creation in public.profiles
+      if (user && !session) {
+        // If user is present but session is null, likely needs email confirmation
+        // Poll for profile creation
+        let profileExists = false;
+        for (let i = 0; i < 10; i++) {
+          const { data: profile } = await supabaseAuthClient
+            .from("profiles")
+            .select("id")
+            .eq("id", user.id)
+            .single();
+          if (profile) {
+            profileExists = true;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 1000)); // wait 1s
+        }
+        if (!profileExists) {
+          // Show a dedicated screen/message instead of alert
+          setLoading(false);
+          router.replace({
+            pathname: "/check-email",
+            params: { email },
+          });
+          return;
+        }
+      }
     } else {
-      const res = await SupabaseService.signIn(email, password);
-      error = res.error;
+      // Real Supabase sign in
+      const { data, error: signInError } =
+        await supabaseAuthClient.auth.signInWithPassword({
+          email,
+          password,
+        });
+      console.log("SignIn response:", data, signInError);
+      error = signInError ? { message: signInError.message } : null;
+      session = data?.session;
+      user = data?.user;
     }
     setLoading(false);
     if (error) {
