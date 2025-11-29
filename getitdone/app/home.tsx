@@ -103,9 +103,12 @@ export default function HomeScreen() {
           <Text style={styles.headerWelcome}>Welcome back,</Text>
           <Text style={styles.headerName}>{profile?.full_name || ""}</Text>
         </View>
-        <View style={styles.headerAvatar}>
+        <Pressable
+          style={styles.headerAvatar}
+          onPress={() => router.replace("/tabs/profile")}
+        >
           <FontAwesome name="user" size={28} color="#6b7280" />
-        </View>
+        </Pressable>
       </View>
       <ScrollView
         style={styles.scrollArea}
