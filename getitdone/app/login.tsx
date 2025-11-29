@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { supabaseAuthClient } from "../services/supabaseService";
+import { ProfileProvider, useProfile } from "./ProfileContext";
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -21,6 +22,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { setProfile } = useProfile();
 
   const handleAuth = async () => {
     if (!email || !password || (isSignUp && !fullName)) {
@@ -86,7 +88,25 @@ export default function LoginScreen() {
     if (error) {
       alert(`Authentication Failed: ${error.message}`);
     } else {
-      router.replace("/onboarding" as any);
+      // Fetch profile from Supabase
+      let profile = null;
+      if (user) {
+        const { data: profileData } = await supabaseAuthClient
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+        profile = profileData;
+      }
+      if (profile) {
+        // Set profile in context
+        setProfile(profile);
+      }
+      if (isSignUp) {
+        router.replace("/onboarding");
+      } else {
+        router.replace("/tabs/home");
+      }
     }
   };
 

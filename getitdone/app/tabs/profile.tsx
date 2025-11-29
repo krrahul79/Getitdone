@@ -10,13 +10,7 @@ import {
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import LogoutModal from "../profile/logout-modal";
-
-const MOCK_USER = {
-  id: "user123",
-  name: "Alex",
-  email: "alex@example.com",
-  avatar: "A",
-};
+import { useProfile } from "../ProfileContext";
 
 function Header() {
   return (
@@ -26,14 +20,15 @@ function Header() {
   );
 }
 
-function ProfileHeader({ user }: { user: typeof MOCK_USER }) {
+function ProfileHeader() {
+  const { profile } = useProfile();
   return (
     <View style={styles.profileHeader}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{user.avatar}</Text>
+        <Text style={styles.avatarText}>{profile?.full_name?.[0] || "?"}</Text>
       </View>
-      <Text style={styles.profileName}>{user.name}</Text>
-      <Text style={styles.profileEmail}>{user.email}</Text>
+      <Text style={styles.profileName}>{profile?.full_name || ""}</Text>
+      <Text style={styles.profileEmail}>{profile?.email || ""}</Text>
     </View>
   );
 }
@@ -75,7 +70,7 @@ export default function ProfileTabScreen() {
   return (
     <View style={styles.container}>
       <Header />
-      <ProfileHeader user={MOCK_USER} />
+      <ProfileHeader />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: 100 }}

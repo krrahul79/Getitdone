@@ -11,6 +11,7 @@ import {
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { SupabaseService } from "../services/supabaseService";
+import { useProfile } from "./ProfileContext";
 
 interface Task {
   id: number;
@@ -34,16 +35,14 @@ function getRelativeDate(dateStr: string) {
 }
 
 export default function HomeScreen() {
+  const { profile } = useProfile();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [userName, setUserName] = useState<string>("");
   const [groupId, setGroupId] = useState<number | null>(null);
   const router = useRouter();
 
   React.useEffect(() => {
     const fetchUserNameAndTasks = async () => {
       try {
-        const { profile } = await SupabaseService.getCurrentUser();
-        setUserName(profile?.full_name || "");
         // Fetch user's groups
         const groupsRes = await SupabaseService.getMyGroups();
         const firstGroup =
@@ -102,7 +101,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerWelcome}>Welcome back,</Text>
-          <Text style={styles.headerName}>{userName}</Text>
+          <Text style={styles.headerName}>{profile?.full_name || ""}</Text>
         </View>
         <View style={styles.headerAvatar}>
           <FontAwesome name="user" size={28} color="#6b7280" />
