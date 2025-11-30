@@ -249,18 +249,16 @@ export const SupabaseService = {
     return { data, error };
   },
 
-  async createGroup(name, icon, color) {
+  async createGroup(name, icon, color, join_code) {
     const deviceId = await getDeviceId();
-
+    const supabase = await getSupabaseClient();
     // Get Profile UUID
     const { data: profile } = await supabase
       .from("profiles")
       .select("id")
       .eq("device_id", deviceId)
       .single();
-
     if (!profile) return { error: "Profile not found" };
-
     // 1. Create Group
     const { data: groupData, error: groupError } = await supabase
       .from("groups")
@@ -269,14 +267,13 @@ export const SupabaseService = {
           name,
           icon,
           color,
+          join_code,
           created_by: profile.id,
         },
       ])
       .select()
       .single();
-
     if (groupError) return { error: groupError };
-
     // 2. Add Creator as Admin Member
     const { error: memberError } = await supabase.from("group_members").insert([
       {
@@ -285,7 +282,6 @@ export const SupabaseService = {
         is_admin: true,
       },
     ]);
-
     return { data: groupData, error: memberError };
   },
 

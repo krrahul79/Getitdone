@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
+import { useProfile } from "../ProfileContext";
 
 const COLORS = [
   { bg: "#ef4444", ring: "#ef4444" }, // red
@@ -39,8 +40,14 @@ export default function CreateGroupModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onCreate: (group: { name: string; color: string; icon: string }) => void;
+  onCreate: (group: {
+    name: string;
+    color: string;
+    icon: string;
+    join_code: string;
+  }) => void;
 }) {
+  const { profile } = useProfile();
   const [groupName, setGroupName] = useState("");
   const [selectedColor, setSelectedColor] = useState(COLORS[1].ring); // blue default
   const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
@@ -61,22 +68,36 @@ export default function CreateGroupModal({
     }
   }, [visible]);
 
+  function generateJoinCode() {
+    // Example: A8X-992
+    const part1 = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const part2 = Math.floor(100 + Math.random() * 900);
+    return `${part1}-${part2}`;
+  }
+
   const handleSubmit = async () => {
     if (!groupName.trim()) return;
     setLoading(true);
     setError(null);
+    const join_code = generateJoinCode();
     try {
       const { data, error } = await SupabaseService.createGroup(
         groupName,
         selectedIcon,
-        selectedColor
+        selectedColor,
+        join_code
       );
       if (error) {
         setError("Failed to create group. Please try again.");
         setLoading(false);
         return;
       }
-      onCreate({ name: groupName, color: selectedColor, icon: selectedIcon });
+      onCreate({
+        name: groupName,
+        color: selectedColor,
+        icon: selectedIcon,
+        join_code,
+      });
       setGroupName("");
       setSelectedColor(COLORS[1].ring);
       setSelectedIcon(ICONS[0]);
