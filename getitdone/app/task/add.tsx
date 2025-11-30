@@ -12,35 +12,12 @@ import {
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  useGroups,
+  Group as GroupType,
+  Member as MemberType,
+} from "../GroupsContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
-
-const MOCK_GROUPS = [
-  { id: "g1", name: "Household" },
-  { id: "g2", name: "Family" },
-  { id: "g3", name: "Weekend Project" },
-];
-const MOCK_GROUP_MEMBERS = {
-  g1: [
-    { id: "user123", name: "Alex" },
-    { id: "user456", name: "Jane" },
-  ],
-  g2: [
-    { id: "user123", name: "Alex" },
-    { id: "user789", name: "Bob" },
-  ],
-  g3: [
-    { id: "user123", name: "Alex" },
-    { id: "user456", name: "Jane" },
-  ],
-};
-const MOCK_EDIT_TASK = {
-  title: "Buy groceries",
-  description:
-    "Get milk, eggs, bread, and coffee. Also check if we need laundry detergent.",
-  selectedGroup: "g1",
-  assignedMembers: ["user123", "user456"],
-  dueDate: "2025-11-03",
-};
 
 export default function AddEditTaskScreen() {
   const router = useRouter();
@@ -50,25 +27,72 @@ export default function AddEditTaskScreen() {
   // Prefill for edit mode
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState<string>(MOCK_GROUPS[0].id);
+  const { groups, getMembersForGroup } = useGroups();
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [assignedMembers, setAssignedMembers] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateValue, setDateValue] = useState<Date | null>(null);
+  const [availableMembers, setAvailableMembers] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState<string | null>(null);
 
+  // If navigated with a group param, prefer that group and its members
   useEffect(() => {
-    if (isEditMode) {
-      setTitle(MOCK_EDIT_TASK.title);
-      setDescription(MOCK_EDIT_TASK.description);
-      setSelectedGroup(MOCK_EDIT_TASK.selectedGroup);
-      setAssignedMembers([...MOCK_EDIT_TASK.assignedMembers]);
-      setDueDate(MOCK_EDIT_TASK.dueDate);
-      setDateValue(new Date(MOCK_EDIT_TASK.dueDate));
+    const gid = Array.isArray(id) ? id[0] : id;
+    if (gid) {
+      setSelectedGroup(String(gid));
+    } else if (groups && groups.length > 0) {
+      setSelectedGroup(groups[0].id);
     }
-  }, [isEditMode]);
+  }, [id, groups]);
 
-  const availableMembers: { id: string; name: string }[] =
-    (MOCK_GROUP_MEMBERS as any)[selectedGroup] || [];
+  // Load members for selectedGroup (uses GroupsContext cache)
+  useEffect(() => {
+    let cancelled = false;
+    const loadMembers = async () => {
+      if (!selectedGroup) return;
+      setMembersLoading(true);
+      setMembersError(null);
+      try {
+        if (!getMembersForGroup)
+          throw new Error("getMembersForGroup not available");
+        const members = await getMembersForGroup(selectedGroup);
+        if (!cancelled) {
+          // normalize member shape for UI
+          const uiMembers = (members || []).map((m: any) => ({
+            id: m.id,
+            name: m.name || m.full_name || "Unknown",
+          }));
+          setAvailableMembers(uiMembers);
+        }
+      } catch (e: any) {
+        console.error("Failed to load members for group", selectedGroup, e);
+        if (!cancelled) {
+          setAvailableMembers([]);
+          setMembersError(e?.message ?? "Failed to load members");
+        }
+      } finally {
+        if (!cancelled) setMembersLoading(false);
+      }
+    };
+    loadMembers();
+  }, [selectedGroup]);
+
+  // derive displayed groups list: if navigating from a group, show only that group
+  const groupIdParam = Array.isArray(id) ? id[0] : id;
+  const displayedGroups: { id: string; name: string }[] = groupIdParam
+    ? groups.find((g) => g.id === groupIdParam)
+      ? [groups.find((g) => g.id === groupIdParam)!]
+      : [{ id: groupIdParam, name: "Group" }]
+    : groups.length
+    ? groups.map((g) => ({ id: g.id, name: g.name }))
+    : [];
+
+  const membersForUI = availableMembers;
+  // membersLoading / membersError can be used to show UI state if desired
 
   const handleMemberToggle = (memberId: string) => {
     setAssignedMembers((prev: string[]) =>
@@ -163,7 +187,7 @@ export default function AddEditTaskScreen() {
           <View style={styles.formGroup}>
             <Text style={styles.label}>Group</Text>
             <View style={styles.selectBox}>
-              {MOCK_GROUPS.map((group) => (
+              {displayedGroups.map((group) => (
                 <Pressable
                   key={group.id}
                   style={[
@@ -188,7 +212,24 @@ export default function AddEditTaskScreen() {
           <View style={styles.formGroup}>
             <Text style={styles.label}>Assign to</Text>
             <View style={styles.chipRow}>
-              {availableMembers.map((member: { id: string; name: string }) => (
+              {membersLoading && (
+                <Text style={{ color: "#6b7280", marginBottom: 8 }}>
+                  Loading members...
+                </Text>
+              )}
+              {membersError && (
+                <Text style={{ color: "#dc2626", marginBottom: 8 }}>
+                  Failed to load members: {membersError}
+                </Text>
+              )}
+              {!membersLoading &&
+                !membersError &&
+                membersForUI.length === 0 && (
+                  <Text style={{ color: "#6b7280", marginBottom: 8 }}>
+                    No members available for this group
+                  </Text>
+                )}
+              {membersForUI.map((member: { id: string; name: string }) => (
                 <Pressable
                   key={member.id}
                   style={[
