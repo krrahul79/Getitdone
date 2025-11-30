@@ -10,10 +10,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { supabaseAuthClient } from "../services/supabaseService";
-import { ProfileProvider, useProfile } from "./ProfileContext";
+import { SupabaseService } from "../services/supabaseService"; // <--- Use the Service
+import { useProfile } from "./ProfileContext";
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -21,92 +22,75 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
   const router = useRouter();
   const { setProfile } = useProfile();
 
   const handleAuth = async () => {
+    // 1. Basic Validation
     if (!email || !password || (isSignUp && !fullName)) {
-      alert("Please fill in all fields");
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
+
     setLoading(true);
-    let error: null | { message: string } = null;
-    let session, user;
-    if (isSignUp) {
-      // Real Supabase sign up
-      const { data, error: signUpError } = await supabaseAuthClient.auth.signUp(
-        {
-          email,
-          password,
-          options: { data: { full_name: fullName } },
-        }
-      );
-      console.log("SignUp response:", data, signUpError);
-      error = signUpError ? { message: signUpError.message } : null;
-      session = data?.session;
-      user = data?.user;
-      // Wait for profile creation in public.profiles
-      if (user && !session) {
-        // If user is present but session is null, likely needs email confirmation
-        // Poll for profile creation
-        let profileExists = false;
-        for (let i = 0; i < 10; i++) {
-          const { data: profile } = await supabaseAuthClient
-            .from("profiles")
-            .select("id")
-            .eq("id", user.id)
-            .single();
-          if (profile) {
-            profileExists = true;
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 1000)); // wait 1s
-        }
-        if (!profileExists) {
-          // Show a dedicated screen/message instead of alert
-          setLoading(false);
-          router.replace({
-            pathname: "/check-email",
-            params: { email },
-          });
-          return;
-        }
-      }
-    } else {
-      // Real Supabase sign in
-      const { data, error: signInError } =
-        await supabaseAuthClient.auth.signInWithPassword({
-          email,
-          password,
-        });
-      console.log("SignIn response:", data, signInError);
-      error = signInError ? { message: signInError.message } : null;
-      session = data?.session;
-      user = data?.user;
-    }
-    setLoading(false);
-    if (error) {
-      alert(`Authentication Failed: ${error.message}`);
-    } else {
-      // Fetch profile from Supabase
-      let profile = null;
-      if (user) {
-        const { data: profileData } = await supabaseAuthClient
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-        profile = profileData;
-      }
-      if (profile) {
-        // Set profile in context
-        setProfile(profile);
-      }
+
+    try {
+      let result;
+
+      // 2. Call the Service (Abstracts away the direct Supabase calls)
       if (isSignUp) {
+        result = await SupabaseService.signUp(email, password, fullName);
+      } else {
+        result = await SupabaseService.signIn(email, password);
+      }
+
+      const { data, error } = result;
+
+      // 3. Handle Errors
+      if (error) {
+        Alert.alert("Authentication Failed", error.message);
+        setLoading(false);
+        return;
+      }
+
+      // 4. Handle Email Confirmation (Specific to Supabase)
+      // If a user object exists but no session, they need to verify email.
+      if (isSignUp && data?.user && !data?.session) {
+        setLoading(false);
+        Alert.alert(
+          "Check your email",
+          "Please click the confirmation link sent to your email to finish signing up."
+        );
+        return;
+      }
+
+      // 5. Fetch Profile & Update Context
+      // We don't need to poll anymore. The DB trigger made the profile instantly.
+      const profileResult = await SupabaseService.getCurrentUser();
+      const { profile } = profileResult;
+
+      if (profile) {
+        setProfile(profile);
+      } else {
+        console.warn(
+          "User logged in, but profile fetch failed:",
+          profileResult
+        );
+      }
+
+      // 6. Navigate
+      if (isSignUp) {
+        // Optional: Go to onboarding if it's a new user
         router.replace("/onboarding");
       } else {
         router.replace("/tabs/home");
       }
+    } catch (e) {
+      console.error("Auth Exception:", e);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,6 +113,7 @@ export default function LoginScreen() {
                 : "Log in to see your tasks."}
             </Text>
           </View>
+
           <View style={styles.form}>
             {isSignUp && (
               <View style={styles.inputGroup}>
@@ -139,9 +124,11 @@ export default function LoginScreen() {
                   value={fullName}
                   onChangeText={setFullName}
                   editable={!loading}
+                  autoCorrect={false}
                 />
               </View>
             )}
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -154,6 +141,7 @@ export default function LoginScreen() {
                 editable={!loading}
               />
             </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
               <TextInput
@@ -165,6 +153,7 @@ export default function LoginScreen() {
                 editable={!loading}
               />
             </View>
+
             <TouchableOpacity
               style={[styles.button, loading && { opacity: 0.7 }]}
               onPress={handleAuth}
@@ -178,6 +167,7 @@ export default function LoginScreen() {
                 </Text>
               )}
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.toggleButton}
               onPress={() => setIsSignUp(!isSignUp)}

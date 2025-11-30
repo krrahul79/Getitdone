@@ -80,18 +80,38 @@ export default function CreateGroupModal({
     setLoading(true);
     setError(null);
     const join_code = generateJoinCode();
+    console.log("[CreateGroupModal] Profile context:", profile);
+    if (!profile || !profile.id) {
+      setError("No user profile found. Please log in again.");
+      setLoading(false);
+      return;
+    }
     try {
+      console.log("[CreateGroupModal] Creating group with:", {
+        name: groupName,
+        icon: selectedIcon,
+        color: selectedColor,
+        join_code,
+        profileId: profile?.id,
+      });
       const { data, error } = await SupabaseService.createGroup(
         groupName,
         selectedIcon,
         selectedColor,
-        join_code
+        join_code,
+        profile.id // Pass profile id explicitly
       );
       if (error) {
-        setError("Failed to create group. Please try again.");
+        console.error("[CreateGroupModal] Supabase error:", error);
+        setError(
+          typeof error === "string"
+            ? error
+            : error?.message || "Failed to create group. Please try again."
+        );
         setLoading(false);
         return;
       }
+      console.log("[CreateGroupModal] Group created:", data);
       onCreate({
         name: groupName,
         color: selectedColor,
@@ -103,8 +123,11 @@ export default function CreateGroupModal({
       setSelectedIcon(ICONS[0]);
       setLoading(false);
       onClose();
-    } catch (e) {
-      setError("Failed to create group. Please try again.");
+    } catch (e: any) {
+      console.error("[CreateGroupModal] Exception:", e);
+      setError(
+        e?.message || String(e) || "Failed to create group. Please try again."
+      );
       setLoading(false);
     }
   };

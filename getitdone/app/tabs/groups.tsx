@@ -10,33 +10,6 @@ import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import CreateGroupModal from "../components/CreateGroupModal";
 
-const mockGroups = [
-  {
-    id: "1",
-    name: "Product Team",
-    members: 5,
-    pendingTasks: 3,
-    color: "#3b82f6",
-    icon: "users",
-  },
-  {
-    id: "2",
-    name: "Designers",
-    members: 4,
-    pendingTasks: 1,
-    color: "#ef4444",
-    icon: "heart",
-  },
-  {
-    id: "3",
-    name: "QA Squad",
-    members: 3,
-    pendingTasks: 0,
-    color: "#22c55e",
-    icon: "briefcase",
-  },
-];
-
 type Group = {
   id: string;
   name: string;
@@ -48,7 +21,7 @@ type Group = {
 
 export default function GroupsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
-  const [groups, setGroups] = useState<Group[]>(mockGroups);
+  const [groups, setGroups] = useState<Group[]>([]);
   const router = useRouter();
 
   const handleGroupPress = (groupId: string) => {
