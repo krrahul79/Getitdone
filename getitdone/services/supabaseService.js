@@ -224,4 +224,34 @@ export const SupabaseService = {
       .single();
     return { data, error };
   },
+
+  // --- GROUP DETAILS ---
+  async getGroupWithMembers(groupId) {
+    try {
+      const { data: group, error: groupError } = await supabase
+        .from("groups")
+        .select("id, name, icon, color, join_code, created_by")
+        .eq("id", groupId)
+        .single();
+      if (groupError) return { error: groupError };
+
+      const { data: members, error: membersError } = await supabase
+        .from("group_members")
+        .select("user_id, is_admin, profiles(id, full_name, avatar_url)")
+        .eq("group_id", groupId);
+      if (membersError) return { error: membersError };
+
+      // Map members to a clean structure
+      const mappedMembers = (members || []).map((m) => ({
+        id: m.profiles?.id || m.user_id,
+        name: m.profiles?.full_name || null,
+        avatar_url: m.profiles?.avatar_url || null,
+        is_admin: m.is_admin,
+      }));
+
+      return { data: { group, members: mappedMembers }, error: null };
+    } catch (e) {
+      return { error: e };
+    }
+  },
 };

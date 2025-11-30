@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,52 +10,56 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { SupabaseService } from "../../services/supabaseService";
 
-const MOCK_GROUP = {
-  id: "1",
-  name: "Household",
-  members: [
-    { id: "user123", name: "Alex", avatar: "A" },
-    { id: "user456", name: "Jane", avatar: "J" },
-  ],
+type Member = {
+  id: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  is_admin?: boolean;
 };
 
-const MOCK_TASKS = [
-  {
-    id: 1,
-    title: "Buy groceries",
-    assignedTo: ["user123"],
-    dueDate: "2025-11-03",
-    isComplete: false,
-  },
-  {
-    id: 2,
-    title: "Take out the trash",
-    assignedTo: ["user456"],
-    dueDate: "2025-11-03",
-    isComplete: false,
-  },
-  {
-    id: 3,
-    title: "Call the plumber",
-    assignedTo: ["user123"],
-    dueDate: "2025-11-04",
-    isComplete: true,
-  },
-  {
-    id: 4,
-    title: "Pay electricity bill",
-    assignedTo: ["user456"],
-    dueDate: "2025-11-05",
-    isComplete: false,
-  },
-];
+type Task = {
+  id: number | string;
+  title: string;
+  assignedTo: string[];
+  dueDate: string;
+  isComplete: boolean;
+};
+
+type GroupData = {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  join_code?: string;
+  members?: Member[];
+};
 
 export default function GroupTaskListScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const groupId = Array.isArray(id) ? id[0] : id;
   const [activeTab, setActiveTab] = useState("todo");
-  const [tasks, setTasks] = useState(MOCK_TASKS);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [group, setGroup] = useState<GroupData | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!groupId) return;
+      const res = await SupabaseService.getGroupWithMembers(groupId as string);
+      if (res.error) {
+        console.error("Failed to load group:", res.error);
+        return;
+      }
+      const data = res.data;
+      if (!data) return;
+      // Combine group and members into a single object for UI
+      setGroup({ ...data.group, members: data.members });
+      // Optionally fetch tasks for the group here
+    };
+    load();
+  }, [groupId]);
 
   const todoTasks = tasks.filter((t) => !t.isComplete);
   const completedTasks = tasks.filter((t) => t.isComplete);
@@ -63,15 +67,17 @@ export default function GroupTaskListScreen() {
   const handleBack = () => router.back();
   const handleInvite = () => alert("Invite modal would open.");
   const handleSettings = () =>
-    router.push({ pathname: "/groups/[id]/settings", params: { id } });
+    router.push({ pathname: "/groups/[id]/settings", params: { id: groupId } });
   const handleAddTask = () =>
-    router.push({ pathname: "/task/add", params: { groupId: id } });
-  const handleSelectTask = (taskId: number) =>
-    router.push({ pathname: "/task/[id]", params: { id: taskId } });
-  const handleToggleComplete = (taskId: number) => {
+    router.push({ pathname: "/task/add", params: { groupId: groupId } });
+  const handleSelectTask = (taskId: string | number) =>
+    router.push({ pathname: "/task/[id]", params: { id: String(taskId) } });
+  const handleToggleComplete = (taskId: string | number) => {
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, isComplete: !t.isComplete } : t
+        String(t.id) === String(taskId)
+          ? { ...t, isComplete: !t.isComplete }
+          : t
       )
     );
   };
@@ -88,19 +94,21 @@ export default function GroupTaskListScreen() {
       </View>
       {/* Group Card */}
       <View style={styles.groupCard}>
-        <Text style={styles.groupName}>{MOCK_GROUP.name}</Text>
+        <Text style={styles.groupName}>{group?.name ?? "Group"}</Text>
         <Text style={styles.membersLabel}>Members</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.membersRow}
         >
-          {MOCK_GROUP.members.map((m) => (
+          {(group?.members || []).map((m: Member) => (
             <View key={m.id} style={styles.memberCol}>
               <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarText}>{m.avatar}</Text>
+                <Text style={styles.memberAvatarText}>
+                  {m.name ? m.name.charAt(0) : "?"}
+                </Text>
               </View>
-              <Text style={styles.memberName}>{m.name}</Text>
+              <Text style={styles.memberName}>{m.name || "Unknown"}</Text>
             </View>
           ))}
           <TouchableOpacity style={styles.memberCol} onPress={handleInvite}>
@@ -159,55 +167,57 @@ export default function GroupTaskListScreen() {
         style={styles.taskList}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {(activeTab === "todo" ? todoTasks : completedTasks).map((task) => {
-          const assignee =
-            MOCK_GROUP.members.find((m) => m.id === task.assignedTo[0])?.name ||
-            "Unassigned";
-          return (
-            <TouchableOpacity
-              key={task.id}
-              style={styles.taskCard}
-              onPress={() => handleSelectTask(task.id)}
-              activeOpacity={0.85}
-            >
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleToggleComplete(task.id);
-                }}
-                style={{ marginRight: 12 }}
+        {(activeTab === "todo" ? todoTasks : completedTasks).map(
+          (task: Task) => {
+            const assignee =
+              (group?.members || []).find((m) => m.id === task.assignedTo[0])
+                ?.name || "Unassigned";
+            return (
+              <TouchableOpacity
+                key={String(task.id)}
+                style={styles.taskCard}
+                onPress={() => handleSelectTask(task.id)}
+                activeOpacity={0.85}
               >
-                <Ionicons
-                  name={
-                    task.isComplete ? "checkmark-circle" : "ellipse-outline"
-                  }
-                  size={26}
-                  color={task.isComplete ? "#22c55e" : "#d1d5db"}
-                />
-              </Pressable>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.taskTitle,
-                    task.isComplete && styles.taskTitleComplete,
-                  ]}
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleToggleComplete(task.id);
+                  }}
+                  style={{ marginRight: 12 }}
                 >
-                  {task.title}
-                </Text>
-                <Text style={styles.taskMeta}>
-                  Due:{" "}
-                  {new Date(task.dueDate).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                  <Text style={{ marginHorizontal: 6 }}> · </Text>
-                  {assignee}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={22} color="#d1d5db" />
-            </TouchableOpacity>
-          );
-        })}
+                  <Ionicons
+                    name={
+                      task.isComplete ? "checkmark-circle" : "ellipse-outline"
+                    }
+                    size={26}
+                    color={task.isComplete ? "#22c55e" : "#d1d5db"}
+                  />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.taskTitle,
+                      task.isComplete && styles.taskTitleComplete,
+                    ]}
+                  >
+                    {task.title}
+                  </Text>
+                  <Text style={styles.taskMeta}>
+                    Due:{" "}
+                    {new Date(task.dueDate).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    <Text style={{ marginHorizontal: 6 }}> · </Text>
+                    {assignee}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={22} color="#d1d5db" />
+              </TouchableOpacity>
+            );
+          }
+        )}
         {activeTab === "todo" && todoTasks.length === 0 && (
           <Text style={styles.emptyText}>No pending tasks. All done! 🎉</Text>
         )}
