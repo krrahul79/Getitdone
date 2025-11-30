@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,20 +9,17 @@ import {
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import CreateGroupModal from "../components/CreateGroupModal";
-
-type Group = {
-  id: string;
-  name: string;
-  members: number;
-  pendingTasks: number;
-  color: string;
-  icon: string;
-};
+import { useGroups } from "../GroupsContext";
 
 export default function GroupsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const { groups, refreshGroups, addGroup } = useGroups();
   const router = useRouter();
+
+  useEffect(() => {
+    // Refresh groups when tab mounts
+    refreshGroups();
+  }, []);
 
   const handleGroupPress = (groupId: string) => {
     router.push({ pathname: "/groups/[id]", params: { id: groupId } });
@@ -40,18 +37,18 @@ export default function GroupsScreen() {
     name: string;
     color: string;
     icon: string;
+    join_code?: string;
   }) => {
-    setGroups([
-      ...groups,
-      {
-        id: String(groups.length + 1),
-        name: group.name,
-        members: 1,
-        pendingTasks: 0,
-        color: group.color,
-        icon: group.icon,
-      },
-    ]);
+    // Add to context
+    addGroup({
+      id: String(Math.random().toString(36).substring(2, 9)),
+      name: group.name,
+      members: 1,
+      pendingTasks: 0,
+      color: group.color,
+      icon: group.icon,
+      join_code: group.join_code,
+    });
     setModalVisible(false);
   };
 
@@ -88,7 +85,7 @@ export default function GroupsScreen() {
                 <Text style={styles.groupName}>{group.name}</Text>
                 <Text style={styles.groupMeta}>
                   {group.members} members
-                  {group.pendingTasks > 0
+                  {group.pendingTasks && group.pendingTasks > 0
                     ? ` · ${group.pendingTasks} pending tasks`
                     : ""}
                 </Text>

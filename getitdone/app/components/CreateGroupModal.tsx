@@ -12,6 +12,7 @@ import {
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
 import { useProfile } from "../ProfileContext";
+import { Group } from "../GroupsContext";
 
 const COLORS = [
   { bg: "#ef4444", ring: "#ef4444" }, // red
@@ -40,12 +41,8 @@ export default function CreateGroupModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onCreate: (group: {
-    name: string;
-    color: string;
-    icon: string;
-    join_code: string;
-  }) => void;
+  // onCreate now receives the fully created group returned from Supabase
+  onCreate: (group: Group) => void;
 }) {
   const { profile } = useProfile();
   const [groupName, setGroupName] = useState("");
@@ -98,8 +95,7 @@ export default function CreateGroupModal({
         groupName,
         selectedIcon,
         selectedColor,
-        join_code,
-        profile.id // Pass profile id explicitly
+        join_code
       );
       if (error) {
         console.error("[CreateGroupModal] Supabase error:", error);
@@ -112,12 +108,20 @@ export default function CreateGroupModal({
         return;
       }
       console.log("[CreateGroupModal] Group created:", data);
-      onCreate({
-        name: groupName,
-        color: selectedColor,
-        icon: selectedIcon,
-        join_code,
-      });
+      // Map the returned Supabase row into our Group shape
+      const createdGroup: Group = {
+        id: data.id,
+        name: data.name,
+        icon: data.icon,
+        color: data.color,
+        members:
+          data._count?.members ??
+          (data.group_members ? data.group_members.length : 1),
+        pendingTasks: data.pending_tasks_count ?? 0,
+        join_code: data.join_code,
+      };
+      // Pass the created group back to the caller (so they can add to context)
+      onCreate(createdGroup);
       setGroupName("");
       setSelectedColor(COLORS[1].ring);
       setSelectedIcon(ICONS[0]);

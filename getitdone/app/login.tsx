@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { SupabaseService } from "../services/supabaseService"; // <--- Use the Service
 import { useProfile } from "./ProfileContext";
+import { useGroups } from "./GroupsContext";
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -25,6 +26,7 @@ export default function LoginScreen() {
 
   const router = useRouter();
   const { setProfile } = useProfile();
+  const { refreshGroups } = useGroups();
 
   const handleAuth = async () => {
     // 1. Basic Validation
@@ -72,6 +74,12 @@ export default function LoginScreen() {
 
       if (profile) {
         setProfile(profile);
+        try {
+          // Load user's groups into context after profile is set
+          await refreshGroups();
+        } catch (e) {
+          console.warn("Failed to refresh groups after login:", e);
+        }
       } else {
         console.warn(
           "User logged in, but profile fetch failed:",

@@ -1,13 +1,16 @@
 import { Stack } from "expo-router";
 import { SafeAreaView, StyleSheet } from "react-native";
 import { ProfileProvider } from "./ProfileContext";
+import { GroupsProvider } from "./GroupsContext";
 
 export default function RootLayout() {
   return (
     <ProfileProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <Stack screenOptions={{ headerShown: false }} />
-      </SafeAreaView>
+      <GroupsProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <Stack screenOptions={{ headerShown: false }} />
+        </SafeAreaView>
+      </GroupsProvider>
     </ProfileProvider>
   );
 }
