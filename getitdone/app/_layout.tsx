@@ -2,14 +2,17 @@ import { Stack } from "expo-router";
 import { SafeAreaView, StyleSheet } from "react-native";
 import { ProfileProvider } from "./ProfileContext";
 import { GroupsProvider } from "./GroupsContext";
+import { TaskProvider } from "./TaskContext";
 
 export default function RootLayout() {
   return (
     <ProfileProvider>
       <GroupsProvider>
-        <SafeAreaView style={styles.safeArea}>
-          <Stack screenOptions={{ headerShown: false }} />
-        </SafeAreaView>
+        <TaskProvider>
+          <SafeAreaView style={styles.safeArea}>
+            <Stack screenOptions={{ headerShown: false }} />
+          </SafeAreaView>
+        </TaskProvider>
       </GroupsProvider>
     </ProfileProvider>
   );

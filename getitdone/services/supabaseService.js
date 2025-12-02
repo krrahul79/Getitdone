@@ -254,4 +254,44 @@ export const SupabaseService = {
       return { error: e };
     }
   },
+
+  // --- TASKS FOR CURRENT USER ---
+  async getMyAssignedTasks() {
+    const {
+      data: { user },
+      error: sessionError,
+    } = await supabase.auth.getUser();
+    if (sessionError || !user) return { data: [], error: sessionError || null };
+
+    try {
+      // Select tasks that have task_assignees for the current user
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(
+          "id, title, description, group_id, due_date, status, created_by, assignees:task_assignees(user_id)"
+        )
+        .eq("task_assignees.user_id", user.id)
+        .order("due_date", { ascending: true });
+
+      if (error) return { data: [], error };
+
+      // normalize assignees
+      const tasks = (data || []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        group_id: t.group_id,
+        due_date: t.due_date,
+        status: t.status || "todo",
+        // Backwards-compatible boolean
+        is_complete: (t.status || "todo") === "completed",
+        created_by: t.created_by,
+        assignees: (t.assignees || []).map((a) => a.user_id),
+      }));
+
+      return { data: tasks, error: null };
+    } catch (e) {
+      return { data: [], error: e };
+    }
+  },
 };

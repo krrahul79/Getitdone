@@ -18,6 +18,7 @@ import {
   Member as MemberType,
 } from "../GroupsContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { SupabaseService } from "../../services/supabaseService";
 
 export default function AddEditTaskScreen() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function AddEditTaskScreen() {
   >([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // If navigated with a group param, prefer that group and its members
   useEffect(() => {
@@ -102,20 +104,55 @@ export default function AddEditTaskScreen() {
     );
   };
 
-  const handleSave = () => {
-    const taskData = {
-      title,
-      description,
-      selectedGroup,
-      assignedMembers,
-      dueDate,
-    };
-    if (isEditMode) {
-      alert("Task Updated! Check the console.");
-    } else {
-      alert("Task Created! Check the console.");
+  const handleSave = async () => {
+    if (saving) return;
+    // basic validation
+    if (!title.trim()) {
+      alert("Please enter a task title.");
+      return;
     }
-    router.back();
+    if (!selectedGroup) {
+      alert("Please select a group.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Prepare payload for SupabaseService.createTask
+      const payload: any = {
+        title: title.trim(),
+        description: description || null,
+        group_id: selectedGroup,
+        due_date: dateValue ? dateValue.toISOString() : null,
+        assignees: assignedMembers || [],
+      };
+
+      if (isEditMode) {
+        // TODO: implement updateTask when backend supports editing tasks
+        // For now, show a not-implemented message
+        alert("Edit mode not implemented yet. Saving as new task.");
+      }
+
+      const { data, error } = await SupabaseService.createTask(payload);
+      if (error) {
+        console.error("createTask error:", error);
+        alert(
+          typeof error === "string"
+            ? error
+            : error?.message || "Failed to save task"
+        );
+      } else {
+        console.log("Task created:", data);
+        alert("Task saved");
+        // Optionally: navigate to task detail or refresh lists
+        router.back();
+      }
+    } catch (e: any) {
+      console.error("Exception saving task:", e);
+      alert(e?.message || "Failed to save task");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Format date for display
@@ -155,8 +192,10 @@ export default function AddEditTaskScreen() {
           <Text style={styles.headerTitle}>
             {isEditMode ? "Edit Task" : "New Task"}
           </Text>
-          <Pressable onPress={handleSave}>
-            <Text style={styles.headerSaveText}>Save</Text>
+          <Pressable onPress={handleSave} disabled={saving}>
+            <Text style={styles.headerSaveText}>
+              {saving ? "Saving..." : "Save"}
+            </Text>
           </Pressable>
         </View>
         {/* Form Body */}
