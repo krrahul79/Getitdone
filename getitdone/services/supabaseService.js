@@ -187,7 +187,12 @@ export const SupabaseService = {
   },
 
   async updateTaskStatus(taskId, status) {
-    return await supabase.from("tasks").update({ status }).eq("id", taskId);
+    // Accept boolean 'status' meaning completed(true)/todo(false) and write to is_completed column
+    const isCompleted = !!status;
+    return await supabase
+      .from("tasks")
+      .update({ is_completed: isCompleted })
+      .eq("id", taskId);
   },
 
   async rescheduleTask(taskId, newDate) {
@@ -268,23 +273,21 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from("tasks")
         .select(
-          "id, title, description, group_id, due_date, status, created_by, assignees:task_assignees(user_id)"
+          "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id)"
         )
         .eq("task_assignees.user_id", user.id)
         .order("due_date", { ascending: true });
 
       if (error) return { data: [], error };
 
-      // normalize assignees
+      // normalize assignees and keep DB boolean is_completed
       const tasks = (data || []).map((t) => ({
         id: t.id,
         title: t.title,
         description: t.description,
         group_id: t.group_id,
         due_date: t.due_date,
-        status: t.status || "todo",
-        // Backwards-compatible boolean
-        is_complete: (t.status || "todo") === "completed",
+        is_completed: !!t.is_completed,
         created_by: t.created_by,
         assignees: (t.assignees || []).map((a) => a.user_id),
       }));

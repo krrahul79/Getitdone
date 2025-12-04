@@ -8,7 +8,7 @@ export type Task = {
   description?: string | null;
   group_id?: string | null;
   due_date?: string | null;
-  is_complete?: boolean;
+  is_completed?: boolean; // DB boolean column
   created_by?: string | null;
   assignees?: string[];
 };

@@ -61,7 +61,7 @@ export default function HomeScreen() {
             title: task.title,
             groupName: firstGroup.name,
             dueDate: task.due_date,
-            isComplete: task.status === "complete",
+            isComplete: task.is_completed,
           }));
           setTasks(mappedTasks);
         } else {
