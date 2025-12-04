@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
+import { useTasks } from "../TaskContext";
 
 type Member = {
   id: string;
@@ -43,6 +44,7 @@ export default function GroupTaskListScreen() {
   const [activeTab, setActiveTab] = useState("todo");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [group, setGroup] = useState<GroupData | null>(null);
+  const { tasks: allTasks, refreshMyTasks } = useTasks();
 
   useEffect(() => {
     const load = async () => {
@@ -61,8 +63,25 @@ export default function GroupTaskListScreen() {
     load();
   }, [groupId]);
 
-  const todoTasks = tasks.filter((t) => !t.isComplete);
-  const completedTasks = tasks.filter((t) => t.isComplete);
+  const groupTasks = useMemo(
+    () => allTasks.filter((t) => String(t.group_id) === String(groupId)),
+    [allTasks, groupId]
+  );
+
+  const uiGroupTasks = useMemo(
+    () =>
+      groupTasks.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        assignedTo: t.assignees || t.assignedTo || [],
+        dueDate: t.due_date || t.dueDate || "",
+        isComplete: !!t.is_completed,
+      })),
+    [groupTasks]
+  );
+
+  const todoTasks = uiGroupTasks.filter((t) => !t.isComplete);
+  const completedTasks = uiGroupTasks.filter((t) => t.isComplete);
 
   const handleBack = () => router.back();
   const handleInvite = () => alert("Invite modal would open.");
@@ -72,14 +91,17 @@ export default function GroupTaskListScreen() {
     router.push({ pathname: "/task/add", params: { groupId: groupId } });
   const handleSelectTask = (taskId: string | number) =>
     router.push({ pathname: "/task/[id]", params: { id: String(taskId) } });
-  const handleToggleComplete = (taskId: string | number) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        String(t.id) === String(taskId)
-          ? { ...t, isComplete: !t.isComplete }
-          : t
-      )
-    );
+  const handleToggleComplete = async (taskId: string | number) => {
+    try {
+      // flip is_completed via service and refresh TaskContext
+      const task = groupTasks.find((t) => String(t.id) === String(taskId));
+      if (!task) return;
+      await SupabaseService.updateTaskStatus(taskId, !task.is_completed);
+      // refresh tasks in context so UI stays in sync
+      await refreshMyTasks();
+    } catch (e) {
+      console.error("Failed to toggle task complete:", e);
+    }
   };
 
   return (
