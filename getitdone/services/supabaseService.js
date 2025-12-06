@@ -141,14 +141,34 @@ export const SupabaseService = {
   },
 
   // --- TASKS ---
-
   async getGroupTasks(groupId) {
     const { data, error } = await supabase
       .from("tasks")
-      .select(`*, assignees:task_assignees(user_id)`)
+      // include assignees and their profile info from task_assignees -> profiles
+      .select(
+        "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+      )
       .eq("group_id", groupId)
       .order("due_date", { ascending: true });
-    return { data, error };
+
+    if (error) return { data: [], error };
+
+    // Normalize assignees: provide simple user_id array and optional profile objects
+    const tasks = (data || []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      group_id: t.group_id,
+      due_date: t.due_date,
+      is_completed: !!t.is_completed,
+      created_by: t.created_by,
+      assignees: (t.assignees || []).map((a) => a.user_id),
+      assignee_profiles: (t.assignees || [])
+        .map((a) => a.profiles)
+        .filter(Boolean),
+    }));
+
+    return { data: tasks, error: null };
   },
 
   async createTask(taskData) {
@@ -174,34 +194,172 @@ export const SupabaseService = {
 
     if (taskError) return { error: taskError };
 
-    // 2. Insert Assignees
+    // 2. Insert/Upsert Assignees (avoid duplicate PK errors)
     if (taskData.assignees && taskData.assignees.length > 0) {
       const assigneeRows = taskData.assignees.map((uid) => ({
         task_id: task.id,
         user_id: uid,
       }));
-      await supabase.from("task_assignees").insert(assigneeRows);
+      // insert assignees for the new task; check for errors so we don't silently continue
+      const { data: assigneeData, error: assigneeError } = await supabase
+        .from("task_assignees")
+        .insert(assigneeRows);
+      if (assigneeError) {
+        console.error("task_assignees insert error:", assigneeError);
+        return { data: null, error: assigneeError };
+      }
     }
 
-    return { data: task, error: null };
+    // 3. Re-query the task including assignees + profile info
+    const { data: fullTask, error: fullTaskError } = await supabase
+      .from("tasks")
+      .select(
+        "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+      )
+      .eq("id", task.id)
+      .single();
+
+    if (fullTaskError) return { data: null, error: fullTaskError };
+
+    const result = {
+      id: fullTask.id,
+      title: fullTask.title,
+      description: fullTask.description,
+      group_id: fullTask.group_id,
+      due_date: fullTask.due_date,
+      is_completed: !!fullTask.is_completed,
+      created_by: fullTask.created_by,
+      assignees: (fullTask.assignees || []).map((a) => a.user_id),
+      assignee_profiles: (fullTask.assignees || [])
+        .map((a) => a.profiles)
+        .filter(Boolean),
+    };
+
+    return { data: result, error: null };
   },
 
   async updateTaskStatus(taskId, status) {
-    // Accept boolean 'status' meaning completed(true)/todo(false) and write to is_completed column
     const isCompleted = !!status;
-    return await supabase
+    const { data, error } = await supabase
       .from("tasks")
       .update({ is_completed: isCompleted })
-      .eq("id", taskId);
+      .eq("id", taskId)
+      .select(
+        "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+      )
+      .single();
+
+    if (error) return { data: null, error };
+
+    const res = {
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      group_id: data.group_id,
+      due_date: data.due_date,
+      is_completed: !!data.is_completed,
+      created_by: data.created_by,
+      assignees: (data.assignees || []).map((a) => a.user_id),
+      assignee_profiles: (data.assignees || [])
+        .map((a) => a.profiles)
+        .filter(Boolean),
+    };
+
+    return { data: res, error: null };
   },
 
   async rescheduleTask(taskId, newDate) {
-    return await supabase
+    const { data, error } = await supabase
       .from("tasks")
       .update({ due_date: newDate })
-      .eq("id", taskId);
+      .eq("id", taskId)
+      .select(
+        "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+      )
+      .single();
+
+    if (error) return { data: null, error };
+
+    const res = {
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      group_id: data.group_id,
+      due_date: data.due_date,
+      is_completed: !!data.is_completed,
+      created_by: data.created_by,
+      assignees: (data.assignees || []).map((a) => a.user_id),
+      assignee_profiles: (data.assignees || [])
+        .map((a) => a.profiles)
+        .filter(Boolean),
+    };
+
+    return { data: res, error: null };
   },
 
+  // helpers: assign/remove users on a task
+  async assignUsersToTask(taskId, userIds = []) {
+    if (!taskId || !Array.isArray(userIds) || userIds.length === 0)
+      return { error: null };
+
+    const rows = userIds.map((uid) => ({ task_id: taskId, user_id: uid }));
+    // upsert to avoid primary key conflicts
+    const { error } = await supabase.from("task_assignees").upsert(rows);
+    if (error) return { error };
+
+    // return updated task
+    const { data, error: requeryError } = await supabase
+      .from("tasks")
+      .select(
+        "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+      )
+      .eq("id", taskId)
+      .single();
+
+    if (requeryError) return { data: null, error: requeryError };
+
+    return {
+      data: {
+        id: data.id,
+        assignees: (data.assignees || []).map((a) => a.user_id),
+        assignee_profiles: (data.assignees || [])
+          .map((a) => a.profiles)
+          .filter(Boolean),
+      },
+      error: null,
+    };
+  },
+
+  async removeTaskAssignee(taskId, userId) {
+    const { error } = await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", taskId)
+      .eq("user_id", userId);
+
+    if (error) return { error };
+
+    const { data, error: requeryError } = await supabase
+      .from("tasks")
+      .select(
+        "id, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+      )
+      .eq("id", taskId)
+      .single();
+
+    if (requeryError) return { data: null, error: requeryError };
+
+    return {
+      data: {
+        id: data.id,
+        assignees: (data.assignees || []).map((a) => a.user_id),
+        assignee_profiles: (data.assignees || [])
+          .map((a) => a.profiles)
+          .filter(Boolean),
+      },
+      error: null,
+    };
+  },
   // --- ACTIVITY ---
 
   async getActivityFeed() {
@@ -273,7 +431,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from("tasks")
         .select(
-          "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id)"
+          "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
         )
         .eq("task_assignees.user_id", user.id)
         .order("due_date", { ascending: true });
@@ -290,6 +448,9 @@ export const SupabaseService = {
         is_completed: !!t.is_completed,
         created_by: t.created_by,
         assignees: (t.assignees || []).map((a) => a.user_id),
+        assignee_profiles: (t.assignees || [])
+          .map((a) => a.profiles)
+          .filter(Boolean),
       }));
 
       return { data: tasks, error: null };

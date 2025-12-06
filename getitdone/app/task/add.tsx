@@ -124,8 +124,13 @@ export default function AddEditTaskScreen() {
         description: description || null,
         group_id: selectedGroup,
         due_date: dateValue ? dateValue.toISOString() : null,
-        assignees: assignedMembers || [],
+        // ensure we send an array of non-empty ids
+        assignees: Array.isArray(assignedMembers)
+          ? assignedMembers.filter(Boolean)
+          : [],
       };
+
+      console.log("createTask payload:", { assignedMembers, payload });
 
       if (isEditMode) {
         // TODO: implement updateTask when backend supports editing tasks
