@@ -171,6 +171,35 @@ export const SupabaseService = {
     return { data: tasks, error: null };
   },
 
+  async getTask(taskId) {
+    const { data: task, error } = await supabase
+      .from("tasks")
+      .select(
+        "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url)), group:groups(name)"
+      )
+      .eq("id", taskId)
+      .single();
+
+    if (error) return { data: null, error };
+
+    const result = {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      group_id: task.group_id,
+      groupName: task.group?.name,
+      due_date: task.due_date,
+      is_completed: !!task.is_completed,
+      created_by: task.created_by,
+      assignees: (task.assignees || []).map((a) => a.user_id),
+      assignee_profiles: (task.assignees || [])
+        .map((a) => a.profiles)
+        .filter(Boolean),
+    };
+
+    return { data: result, error: null };
+  },
+
   async createTask(taskData) {
     const {
       data: { user },

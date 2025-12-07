@@ -13,6 +13,7 @@ export const SupabaseService: {
   joinGroupByCode(joinCode: string): Promise<{ data: any; error: any }>;
   getGroupWithMembers(groupId: string): Promise<{ data: { group: Group; members: UserProfile[] }; error: any }>;
   getGroupTasks(groupId: string): Promise<{ data: Task[]; error: any }>;
+  getTask(taskId: string): Promise<{ data: Task & { groupName?: string }; error: any }>;
   createTask(taskData: Partial<Task>): Promise<{ data: Task; error: any }>;
   updateTaskStatus(taskId: string, isCompleted: boolean): Promise<{ data: any; error: any }>;
   rescheduleTask(taskId: string, newDate: string): Promise<{ data: any; error: any }>;
