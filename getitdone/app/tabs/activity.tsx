@@ -1,314 +1,261 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+} from "react-native";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { SupabaseService } from "../../services/supabaseService";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { LinearGradient } from "expo-linear-gradient";
 
-const MOCK_ACTIVITY: ActivityItemType[] = [
-  {
-    id: 1,
-    type: "completed",
-    actor: "Jane",
-    object: "Buy groceries",
-    group: "Household",
-    time: "5m ago",
-  },
-  {
-    id: 2,
-    type: "rescheduled",
-    actor: "Alex",
-    object: "Take out the trash",
-    group: "Household",
-    time: "1h ago",
-    from: "Today",
-    to: "Tomorrow",
-  },
-  {
-    id: 3,
-    type: "created",
-    actor: "Alex",
-    object: "Plan weekend trip",
-    group: "Family",
-    time: "3h ago",
-  },
-  {
-    id: 4,
-    type: "joined",
-    actor: "Bob",
-    object: "Weekend Project",
-    group: null,
-    time: "Yesterday",
-  },
-  {
-    id: 5,
-    type: "created",
-    actor: "Jane",
-    object: "Call the plumber",
-    group: "Household",
-    time: "Yesterday",
-  },
-];
+const { width } = Dimensions.get("window");
 
-type ActivityType =
-  | "completed"
-  | "rescheduled"
-  | "created"
-  | "joined"
-  | "other";
-type ActivityItemType = {
+interface ActivityItem {
   id: number;
-  type: ActivityType;
-  actor: string;
-  object: string;
-  group?: string | null;
-  time: string;
-  from?: string;
-  to?: string;
-};
+  description: string;
+  created_at: string;
+  type: "task_created" | "task_completed" | "group_joined" | "group_created";
+  user_id: string;
+  profiles: {
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
 
-function ActivityIcon({ type }: { type: ActivityType }) {
+function getRelativeTime(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return "Just now";
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return date.toLocaleDateString();
+}
+
+function getActivityIcon(type: string) {
   switch (type) {
-    case "completed":
-      return (
-        <Ionicons
-          name="checkmark-circle"
-          size={24}
-          color="#22c55e"
-          style={styles.iconBgGreen}
-        />
-      );
-    case "rescheduled":
-      return (
-        <FontAwesome5
-          name="calendar-alt"
-          size={22}
-          color="#f59e42"
-          style={styles.iconBgOrange}
-        />
-      );
-    case "created":
-      return (
-        <Ionicons
-          name="add-circle"
-          size={24}
-          color="#2563eb"
-          style={styles.iconBgBlue}
-        />
-      );
-    case "joined":
-      return (
-        <FontAwesome5
-          name="user-plus"
-          size={22}
-          color="#a78bfa"
-          style={styles.iconBgPurple}
-        />
-      );
+    case "task_completed":
+      return { name: "check-circle", color: COLORS.success, bg: "rgba(16, 185, 129, 0.1)" };
+    case "task_created":
+      return { name: "plus-circle", color: COLORS.primary, bg: "rgba(99, 102, 241, 0.1)" };
+    case "group_joined":
+      return { name: "user-plus", color: COLORS.secondary, bg: "rgba(236, 72, 153, 0.1)" };
+    case "group_created":
+      return { name: "users", color: COLORS.warning, bg: "rgba(245, 158, 11, 0.1)" };
     default:
-      return (
-        <Ionicons
-          name="information-circle"
-          size={24}
-          color="#6b7280"
-          style={styles.iconBgGray}
-        />
-      );
+      return { name: "bell", color: COLORS.textSecondary, bg: COLORS.inputBg };
   }
 }
 
-function ActivityItem({ item }: { item: ActivityItemType }) {
-  let text;
-  switch (item.type) {
-    case "completed":
-      text = (
-        <Text>
-          <Text style={styles.bold}>{item.actor}</Text> completed{" "}
-          <Text style={styles.bold}>&quot;{item.object}&quot;</Text> in{" "}
-          {item.group}
-        </Text>
-      );
-      break;
-    case "rescheduled":
-      text = (
-        <Text>
-          <Text style={styles.bold}>{item.actor}</Text> rescheduled{" "}
-          <Text style={styles.bold}>&quot;{item.object}&quot;</Text> from{" "}
-          {item.from} to {item.to}
-        </Text>
-      );
-      break;
-    case "created":
-      text = (
-        <Text>
-          <Text style={styles.bold}>{item.actor}</Text> created{" "}
-          <Text style={styles.bold}>&quot;{item.object}&quot;</Text> in{" "}
-          {item.group}
-        </Text>
-      );
-      break;
-    case "joined":
-      text = (
-        <Text>
-          <Text style={styles.bold}>{item.actor}</Text> joined the{" "}
-          <Text style={styles.bold}>&quot;{item.object}&quot;</Text> group
-        </Text>
-      );
-      break;
-    default:
-      text = <Text>{item.object}</Text>;
-  }
-  return (
-    <View style={styles.activityItem}>
-      <View style={styles.iconWrap}>
-        <ActivityIcon type={item.type} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.activityText}>{text}</Text>
-        <Text style={styles.activityTime}>{item.time}</Text>
-      </View>
-    </View>
-  );
-}
+export default function ActivityScreen() {
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-function DateHeader({ title }: { title: string }) {
-  return <Text style={styles.dateHeader}>{title}</Text>;
-}
+  const fetchActivity = async () => {
+    try {
+      const { data, error } = await SupabaseService.getActivityFeed();
+      if (error) {
+        console.error("Error fetching activity:", error);
+      } else {
+        setActivities(data || []);
+      }
+    } catch (e) {
+      console.error("Exception fetching activity:", e);
+    }
+  };
 
-export default function ActivityTabScreen() {
-  const todayActivities = MOCK_ACTIVITY.filter((item) =>
-    item.time.includes("ago")
-  );
-  const yesterdayActivities = MOCK_ACTIVITY.filter(
-    (item) => item.time === "Yesterday"
-  );
+  useEffect(() => {
+    fetchActivity();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchActivity();
+    setRefreshing(false);
+  };
 
   return (
     <View style={styles.container}>
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.primaryDark]}
+        style={styles.headerBackground}
+      />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Activity Feed</Text>
+        <Text style={styles.headerTitle}>Activity</Text>
+        <Text style={styles.headerSubtitle}>Recent updates from your groups</Text>
       </View>
+
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+        }
       >
-        <DateHeader title="Today" />
-        {todayActivities.map((item) => (
-          <ActivityItem key={item.id} item={item} />
-        ))}
-        <DateHeader title="Yesterday" />
-        {yesterdayActivities.map((item) => (
-          <ActivityItem key={item.id} item={item} />
-        ))}
-        {MOCK_ACTIVITY.length === 0 && (
-          <Text style={styles.emptyText}>
-            No activity yet. Go create a task!
-          </Text>
+        {activities.length === 0 ? (
+          <View style={styles.emptyState}>
+            <FontAwesome5 name="history" size={48} color={COLORS.textTertiary} />
+            <Text style={styles.emptyText}>No recent activity.</Text>
+            <Text style={styles.emptySubText}>
+              Actions taken by you and your group members will appear here.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.timeline}>
+            {activities.map((item, index) => {
+              const iconData = getActivityIcon(item.type);
+              const isLast = index === activities.length - 1;
+
+              return (
+                <View key={item.id} style={styles.timelineItem}>
+                  <View style={styles.leftColumn}>
+                    <View style={[styles.iconCircle, { backgroundColor: iconData.bg }]}>
+                      <FontAwesome5 name={iconData.name as any} size={16} color={iconData.color} />
+                    </View>
+                    {!isLast && <View style={styles.line} />}
+                  </View>
+                  
+                  <View style={styles.rightColumn}>
+                    <View style={styles.card}>
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.userName}>
+                          {item.profiles?.full_name || "Unknown User"}
+                        </Text>
+                        <Text style={styles.timeAgo}>
+                          {getRelativeTime(item.created_at)}
+                        </Text>
+                      </View>
+                      <Text style={styles.description}>{item.description}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
-      {/* Bottom NavBar visual only, actual navigation handled by tabs */}
-      <View style={styles.bottomNavBar}>
-        <View style={styles.navBtn}>
-          <Ionicons name="home" size={24} color="#6b7280" />
-          <Text style={styles.navLabel}>Home</Text>
-        </View>
-        <View style={styles.navBtn}>
-          <Ionicons name="people" size={24} color="#6b7280" />
-          <Text style={styles.navLabel}>Groups</Text>
-        </View>
-        <View style={styles.navBtnActive}>
-          <Ionicons name="pie-chart" size={24} color="#2563eb" />
-          <Text style={styles.navLabelActive}>Activity</Text>
-        </View>
-        <View style={styles.navBtn}>
-          <Ionicons name="person" size={24} color="#6b7280" />
-          <Text style={styles.navLabel}>Profile</Text>
-        </View>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f3f4f6" },
-  header: {
-    backgroundColor: "#fff",
-    padding: 20,
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  headerTitle: { fontSize: 24, fontWeight: "700", color: "#1f2937" },
-  scroll: { flex: 1, padding: 20 },
-  dateHeader: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "600",
-    marginVertical: 10,
-    textTransform: "uppercase",
-  },
-  activityItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  iconBgGreen: { backgroundColor: "#bbf7d0", borderRadius: 20, padding: 4 },
-  iconBgOrange: { backgroundColor: "#fed7aa", borderRadius: 20, padding: 4 },
-  iconBgBlue: { backgroundColor: "#dbeafe", borderRadius: 20, padding: 4 },
-  iconBgPurple: { backgroundColor: "#ede9fe", borderRadius: 20, padding: 4 },
-  iconBgGray: { backgroundColor: "#f3f4f6", borderRadius: 20, padding: 4 },
-  activityText: { color: "#374151", fontSize: 16 },
-  activityTime: { color: "#6b7280", fontSize: 13, marginTop: 2 },
-  bold: { fontWeight: "700", color: "#1f2937" },
-  emptyText: {
-    color: "#6b7280",
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 24,
-  },
-  bottomNavBar: {
+  headerBackground: {
     position: "absolute",
+    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    height: 80,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 50,
+    height: 180,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  navBtn: { flex: 1, alignItems: "center" },
-  navBtnActive: { flex: 1, alignItems: "center" },
-  navLabel: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  navLabelActive: {
+  header: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl + 20,
+    paddingBottom: SPACING.l,
+  },
+  headerTitle: {
+    fontFamily: FONTS.extraBold,
+    fontSize: 32,
+    color: "#fff",
+    marginBottom: SPACING.xs,
+  },
+  headerSubtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: "rgba(255,255,255,0.8)",
+  },
+  scrollContent: {
+    paddingHorizontal: SPACING.l,
+    paddingTop: SPACING.m,
+    paddingBottom: 100,
+  },
+  timeline: {
+    marginTop: SPACING.s,
+  },
+  timelineItem: {
+    flexDirection: "row",
+    marginBottom: SPACING.s,
+  },
+  leftColumn: {
+    alignItems: "center",
+    width: 40,
+    marginRight: SPACING.m,
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  line: {
+    width: 2,
+    flex: 1,
+    backgroundColor: COLORS.border,
+    marginTop: -4,
+    marginBottom: -4,
+  },
+  rightColumn: {
+    flex: 1,
+    paddingBottom: SPACING.l,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
+    ...SHADOWS.small,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  userName: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  timeAgo: {
+    fontFamily: FONTS.regular,
     fontSize: 12,
-    color: "#2563eb",
-    fontWeight: "700",
-    marginTop: 2,
+    color: COLORS.textTertiary,
+  },
+  description: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: SPACING.xxl,
+    marginTop: SPACING.xl,
+  },
+  emptyText: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.text,
+    marginTop: SPACING.m,
+    marginBottom: SPACING.xs,
+  },
+  emptySubText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    maxWidth: 250,
   },
 });

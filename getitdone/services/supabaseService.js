@@ -393,7 +393,7 @@ export const SupabaseService = {
     try {
       const { data: group, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, icon, color, join_code, created_by")
+        .select("id, name, icon, color, join_code, created_by, created_at")
         .eq("id", groupId)
         .single();
       if (groupError) return { error: groupError };
@@ -407,7 +407,7 @@ export const SupabaseService = {
       // Map members to a clean structure
       const mappedMembers = (members || []).map((m) => ({
         id: m.profiles?.id || m.user_id,
-        name: m.profiles?.full_name || null,
+        full_name: m.profiles?.full_name || "Unknown",
         avatar_url: m.profiles?.avatar_url || null,
         is_admin: m.is_admin,
       }));
@@ -457,5 +457,19 @@ export const SupabaseService = {
     } catch (e) {
       return { data: [], error: e };
     }
+  },
+
+  async registerPushToken(token) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { error: "Not logged in" };
+
+    const { error } = await supabase
+      .from("user_push_tokens")
+      .upsert({ user_id: user.id, token }, { onConflict: "token" });
+
+    return { error };
   },
 };

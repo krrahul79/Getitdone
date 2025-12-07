@@ -11,11 +11,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Dimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { SupabaseService } from "../services/supabaseService"; // <--- Use the Service
+import { SupabaseService } from "../services/supabaseService";
 import { useProfile } from "./ProfileContext";
 import { useGroups } from "./GroupsContext";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../constants/theme";
+import { FontAwesome } from "@expo/vector-icons";
+
+const { width } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -29,7 +34,6 @@ export default function LoginScreen() {
   const { refreshGroups } = useGroups();
 
   const handleAuth = async () => {
-    // 1. Basic Validation
     if (!email || !password || (isSignUp && !fullName)) {
       Alert.alert("Error", "Please fill in all fields");
       return;
@@ -39,8 +43,6 @@ export default function LoginScreen() {
 
     try {
       let result;
-
-      // 2. Call the Service (Abstracts away the direct Supabase calls)
       if (isSignUp) {
         result = await SupabaseService.signUp(email, password, fullName);
       } else {
@@ -49,15 +51,12 @@ export default function LoginScreen() {
 
       const { data, error } = result;
 
-      // 3. Handle Errors
       if (error) {
         Alert.alert("Authentication Failed", error.message);
         setLoading(false);
         return;
       }
 
-      // 4. Handle Email Confirmation (Specific to Supabase)
-      // If a user object exists but no session, they need to verify email.
       if (isSignUp && data?.user && !data?.session) {
         setLoading(false);
         Alert.alert(
@@ -67,30 +66,20 @@ export default function LoginScreen() {
         return;
       }
 
-      // 5. Fetch Profile & Update Context
-      // We don't need to poll anymore. The DB trigger made the profile instantly.
       const profileResult = await SupabaseService.getCurrentUser();
       const { profile } = profileResult;
 
       if (profile) {
         setProfile(profile);
         try {
-          // Load user's groups into context after profile is set
           await refreshGroups();
         } catch (e) {
           console.warn("Failed to refresh groups after login:", e);
         }
-      } else {
-        console.warn(
-          "User logged in, but profile fetch failed:",
-          profileResult
-        );
       }
 
-      // 6. Navigate
       if (isSignUp) {
-        // Optional: Go to onboarding if it's a new user
-        router.replace("/onboarding");
+        router.replace("/tabs/home"); // Go straight to home, onboarding can be part of home empty state
       } else {
         router.replace("/tabs/home");
       }
@@ -108,17 +97,23 @@ export default function LoginScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={48}
       >
         <View style={styles.content}>
-          <View style={{ marginBottom: 32 }}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
+          >
+            <FontAwesome name="arrow-left" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+
+          <View style={styles.header}>
             <Text style={styles.title}>
               {isSignUp ? "Create Account" : "Welcome Back"}
             </Text>
             <Text style={styles.subtitle}>
               {isSignUp
-                ? "Sign up to start organizing."
-                : "Log in to see your tasks."}
+                ? "Join us to start organizing your life."
+                : "Log in to access your groups and tasks."}
             </Text>
           </View>
 
@@ -129,6 +124,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="John Doe"
+                  placeholderTextColor={COLORS.textTertiary}
                   value={fullName}
                   onChangeText={setFullName}
                   editable={!loading}
@@ -142,6 +138,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="john@example.com"
+                placeholderTextColor={COLORS.textTertiary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -155,6 +152,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="••••••••"
+                placeholderTextColor={COLORS.textTertiary}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -166,6 +164,7 @@ export default function LoginScreen() {
               style={[styles.button, loading && { opacity: 0.7 }]}
               onPress={handleAuth}
               disabled={loading}
+              activeOpacity={0.9}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -176,17 +175,19 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.toggleButton}
-              onPress={() => setIsSignUp(!isSignUp)}
-              disabled={loading}
-            >
-              <Text style={styles.toggleText}>
-                {isSignUp
-                  ? "Already have an account? Log In"
-                  : "New here? Create Account"}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                {isSignUp ? "Already have an account?" : "Don't have an account?"}
               </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsSignUp(!isSignUp)}
+                disabled={loading}
+              >
+                <Text style={styles.linkText}>
+                  {isSignUp ? "Log In" : "Sign Up"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -197,84 +198,89 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
+    padding: SPACING.xl,
     justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#fff",
+  },
+  backButton: {
+    position: "absolute",
+    top: SPACING.xl,
+    left: SPACING.xl,
+    zIndex: 10,
+    padding: SPACING.s,
+  },
+  header: {
+    marginBottom: SPACING.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1f2937",
-    marginBottom: 4,
-    textAlign: "left",
+    fontFamily: FONTS.extraBold,
+    fontSize: 32,
+    color: COLORS.text,
+    marginBottom: SPACING.s,
   },
   subtitle: {
+    fontFamily: FONTS.medium,
     fontSize: 16,
-    color: "#6b7280",
-    marginBottom: 0,
-    textAlign: "left",
+    color: COLORS.textSecondary,
+    lineHeight: 24,
   },
   form: {
-    width: "100%",
-    maxWidth: 400,
-    gap: 12,
+    gap: SPACING.l,
   },
   inputGroup: {
-    marginBottom: 12,
+    gap: SPACING.s,
   },
   label: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#374151",
-    marginBottom: 6,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.text,
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   input: {
-    width: "100%",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 17,
-    color: "#111827",
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.m,
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.m,
+    fontSize: 16,
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    marginBottom: 0,
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
   },
   button: {
-    backgroundColor: "#2563eb",
-    borderRadius: 12,
-    paddingVertical: 16,
-    marginTop: 8,
-    marginBottom: 0,
-    shadowColor: "#2563eb",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.l,
+    paddingVertical: SPACING.m,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: SPACING.s,
+    ...SHADOWS.primary,
   },
   buttonText: {
-    color: "#fff",
+    fontFamily: FONTS.bold,
     fontSize: 18,
-    fontWeight: "700",
+    color: "#fff",
   },
-  toggleButton: {
-    marginTop: 16,
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
+    gap: SPACING.xs,
+    marginTop: SPACING.m,
   },
-  toggleText: {
-    color: "#2563eb",
-    fontWeight: "600",
-    fontSize: 16,
-    textAlign: "center",
-    textDecorationLine: "underline",
+  footerText: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: COLORS.textSecondary,
+  },
+  linkText: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.primary,
   },
 });
