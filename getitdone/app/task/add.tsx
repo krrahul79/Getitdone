@@ -80,7 +80,7 @@ export default function AddEditTaskScreen() {
         description: description.trim(),
         group_id: selectedGroupId,
         due_date: dueDate.toISOString(),
-        assignees: assignees.length > 0 ? assignees : [profile?.id], // Default to self if none selected
+        assignees: assignees.length > 0 ? assignees : (profile?.id ? [profile.id] : []), // Default to self if none selected
       };
 
       const { error } = await SupabaseService.createTask(taskData);
