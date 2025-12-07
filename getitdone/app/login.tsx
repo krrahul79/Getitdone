@@ -12,6 +12,7 @@ import {
   Platform,
   Alert,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SupabaseService } from "../services/supabaseService";
@@ -94,103 +95,109 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.content}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.back()}
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <FontAwesome name="arrow-left" size={20} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <FontAwesome name="arrow-left" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+            <View style={styles.header}>
+              <Text style={styles.title}>
+                {isSignUp ? "Create Account" : "Welcome Back"}
+              </Text>
+              <Text style={styles.subtitle}>
+                {isSignUp
+                  ? "Join us to start organizing your life."
+                  : "Log in to access your groups and tasks."}
+              </Text>
+            </View>
 
-          <View style={styles.header}>
-            <Text style={styles.title}>
-              {isSignUp ? "Create Account" : "Welcome Back"}
-            </Text>
-            <Text style={styles.subtitle}>
-              {isSignUp
-                ? "Join us to start organizing your life."
-                : "Log in to access your groups and tasks."}
-            </Text>
-          </View>
+            <View style={styles.form}>
+              {isSignUp && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Full Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="John Doe"
+                    placeholderTextColor={COLORS.textTertiary}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    editable={!loading}
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
 
-          <View style={styles.form}>
-            {isSignUp && (
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Full Name</Text>
+                <Text style={styles.label}>Email</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="John Doe"
+                  placeholder="john@example.com"
                   placeholderTextColor={COLORS.textTertiary}
-                  value={fullName}
-                  onChangeText={setFullName}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                   editable={!loading}
-                  autoCorrect={false}
                 />
               </View>
-            )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="john@example.com"
-                placeholderTextColor={COLORS.textTertiary}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!loading}
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor={COLORS.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  editable={!loading}
+                />
+              </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor={COLORS.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, loading && { opacity: 0.7 }]}
-              onPress={handleAuth}
-              disabled={loading}
-              activeOpacity={0.9}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>
-                  {isSignUp ? "Sign Up" : "Log In"}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                {isSignUp ? "Already have an account?" : "Don't have an account?"}
-              </Text>
               <TouchableOpacity
-                onPress={() => setIsSignUp(!isSignUp)}
+                style={[styles.button, loading && { opacity: 0.7 }]}
+                onPress={handleAuth}
                 disabled={loading}
+                activeOpacity={0.9}
               >
-                <Text style={styles.linkText}>
-                  {isSignUp ? "Log In" : "Sign Up"}
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>
+                    {isSignUp ? "Sign Up" : "Log In"}
+                  </Text>
+                )}
               </TouchableOpacity>
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>
+                  {isSignUp ? "Already have an account?" : "Don't have an account?"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setIsSignUp(!isSignUp)}
+                  disabled={loading}
+                >
+                  <Text style={styles.linkText}>
+                    {isSignUp ? "Log In" : "Sign Up"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -200,10 +207,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  content: {
-    flex: 1,
+
+  scrollContent: {
+    flexGrow: 1,
     padding: SPACING.xl,
     justifyContent: "center",
+    paddingTop: 80, // Ensure content clears the back button
   },
   backButton: {
     position: "absolute",

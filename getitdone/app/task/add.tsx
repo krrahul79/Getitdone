@@ -31,6 +31,7 @@ export default function AddEditTaskScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [assignees, setAssignees] = useState<string[]>([]);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,9 +107,23 @@ export default function AddEditTaskScreen() {
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios");
+    setShowDatePicker(false);
     if (selectedDate) {
-      setDueDate(selectedDate);
+      const currentDate = new Date(dueDate);
+      currentDate.setFullYear(selectedDate.getFullYear());
+      currentDate.setMonth(selectedDate.getMonth());
+      currentDate.setDate(selectedDate.getDate());
+      setDueDate(currentDate);
+    }
+  };
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    setShowTimePicker(false);
+    if (selectedDate) {
+      const currentDate = new Date(dueDate);
+      currentDate.setHours(selectedDate.getHours());
+      currentDate.setMinutes(selectedDate.getMinutes());
+      setDueDate(currentDate);
     }
   };
 
@@ -187,28 +202,76 @@ export default function AddEditTaskScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Due Date</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-              <Text style={styles.dateText}>
-                {dueDate.toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </Text>
-            </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={dueDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={onDateChange}
-                minimumDate={new Date()}
-              />
+            <View style={styles.dateTimeRow}>
+              <TouchableOpacity
+                style={[styles.dateButton, showDatePicker && styles.activeDateButton]}
+                onPress={() => {
+                  setShowTimePicker(false);
+                  setShowDatePicker(!showDatePicker);
+                }}
+              >
+                <Ionicons 
+                  name="calendar-outline" 
+                  size={20} 
+                  color={showDatePicker ? COLORS.primary : COLORS.text} 
+                />
+                <Text style={[styles.dateText, showDatePicker && styles.activeDateText]}>
+                  {dueDate.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.dateButton, showTimePicker && styles.activeDateButton]}
+                onPress={() => {
+                  setShowDatePicker(false);
+                  setShowTimePicker(!showTimePicker);
+                }}
+              >
+                <Ionicons 
+                  name="time-outline" 
+                  size={20} 
+                  color={showTimePicker ? COLORS.primary : COLORS.text} 
+                />
+                <Text style={[styles.dateText, showTimePicker && styles.activeDateText]}>
+                  {dueDate.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {(showDatePicker || showTimePicker) && (
+              <View style={styles.pickerContainer}>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={dueDate}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "inline" : "default"}
+                    onChange={onDateChange}
+                    minimumDate={new Date()}
+                    accentColor={COLORS.primary}
+                    textColor={COLORS.text}
+                    themeVariant="light"
+                  />
+                )}
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={dueDate}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onTimeChange}
+                    accentColor={COLORS.primary}
+                    textColor={COLORS.text}
+                    themeVariant="light"
+                  />
+                )}
+              </View>
             )}
           </View>
 
@@ -352,7 +415,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontFamily: FONTS.bold,
   },
+  dateTimeRow: {
+    flexDirection: "row",
+    gap: SPACING.m,
+  },
   dateButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
@@ -361,6 +429,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     gap: SPACING.s,
+    ...SHADOWS.small,
+  },
+  activeDateButton: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.inputBg,
+  },
+  activeDateText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
+  },
+  pickerContainer: {
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
+    marginTop: SPACING.s,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.small,
   },
   dateText: {
