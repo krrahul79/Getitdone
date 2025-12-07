@@ -8,7 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
+  Platform,
+  TouchableOpacity,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SupabaseService } from "../../services/supabaseService";
@@ -23,6 +29,13 @@ export default function TaskDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+
+  // Reschedule State
+  // Reschedule State
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
 
   useEffect(() => {
     if (id) {
@@ -71,9 +84,64 @@ export default function TaskDetailScreen() {
   };
 
   const handleReschedule = () => {
-    // TODO: Implement date picker logic similar to add task
-    Alert.alert("Feature coming soon", "Rescheduling will be available soon.");
+    const start = task.due_date ? new Date(task.due_date) : new Date();
+    setTempDate(start);
+    setIsRescheduling(true);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
   };
+
+  const cancelReschedule = () => {
+    setIsRescheduling(false);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
+  };
+
+  const saveReschedule = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await SupabaseService.rescheduleTask(
+        task.id,
+        tempDate.toISOString()
+      );
+      if (error) throw error;
+      setTask(data);
+      Alert.alert("Success", "Task rescheduled.");
+      setIsRescheduling(false);
+    } catch (e) {
+      console.error("Reschedule Error:", e);
+      Alert.alert("Error", "Failed to reschedule task.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      const currentDate = new Date(tempDate);
+      currentDate.setFullYear(selectedDate.getFullYear());
+      currentDate.setMonth(selectedDate.getMonth());
+      currentDate.setDate(selectedDate.getDate());
+      setTempDate(currentDate);
+    }
+  };
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+        setShowTimePicker(false);
+    }
+    if (selectedDate) {
+      const currentDate = new Date(tempDate);
+      currentDate.setHours(selectedDate.getHours());
+      currentDate.setMinutes(selectedDate.getMinutes());
+      setTempDate(currentDate);
+    }
+  };
+
+
 
   const handleEdit = () => {
     router.push({ pathname: "/task/[id]/edit", params: { id: task.id } });
@@ -158,15 +226,117 @@ export default function TaskDetailScreen() {
               {task.title}
             </Text>
           </View>
-          <Pressable style={styles.rescheduleBtn} onPress={handleReschedule}>
-            <FontAwesome
-              name="clock-o"
-              size={18}
-              color="#2563eb"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.rescheduleBtnText}>Reschedule</Text>
-          </Pressable>
+          {!isRescheduling ? (
+            <Pressable style={styles.rescheduleBtn} onPress={handleReschedule}>
+              <FontAwesome
+                name="clock-o"
+                size={18}
+                color="#2563eb"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.rescheduleBtnText}>Reschedule</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.rescheduleContainer}>
+                <Text style={styles.rescheduleLabel}>Pick a new due date:</Text>
+              <View style={styles.dateTimeRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.dateButton,
+                    showDatePicker && styles.activeDateButton,
+                  ]}
+                  onPress={() => {
+                    setShowTimePicker(false);
+                    setShowDatePicker(!showDatePicker);
+                  }}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={showDatePicker ? COLORS.primary : COLORS.text}
+                  />
+                  <Text
+                    style={[
+                      styles.dateText,
+                      showDatePicker && styles.activeDateText,
+                    ]}
+                  >
+                    {tempDate.toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.dateButton,
+                    showTimePicker && styles.activeDateButton,
+                  ]}
+                  onPress={() => {
+                    setShowDatePicker(false);
+                    setShowTimePicker(!showTimePicker);
+                  }}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={showTimePicker ? COLORS.primary : COLORS.text}
+                  />
+                  <Text
+                    style={[
+                      styles.dateText,
+                      showTimePicker && styles.activeDateText,
+                    ]}
+                  >
+                    {tempDate.toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {(showDatePicker || showTimePicker) && (
+                <View style={styles.pickerContainer}>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={tempDate}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "inline" : "default"}
+                      onChange={onDateChange}
+                      minimumDate={new Date()}
+                      accentColor={COLORS.primary}
+                      textColor={COLORS.text}
+                      themeVariant="light"
+                    />
+                  )}
+
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={tempDate}
+                      mode="time"
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      onChange={onTimeChange}
+                      accentColor={COLORS.primary}
+                      textColor={COLORS.text}
+                      themeVariant="light"
+                    />
+                  )}
+                </View>
+              )}
+
+              <View style={styles.rescheduleActions}>
+                  <Pressable style={styles.cancelActionBtn} onPress={cancelReschedule}>
+                      <Text style={styles.cancelActionText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable style={styles.saveActionBtn} onPress={saveReschedule}>
+                      <Text style={styles.saveActionText}>Save Changes</Text>
+                  </Pressable>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Details Section */}
@@ -214,6 +384,8 @@ export default function TaskDetailScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+
     </View>
   );
 }
@@ -329,7 +501,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16, // Reduced from 20 to give more room
     paddingTop: 24,
     paddingBottom: 18,
   },
@@ -362,6 +534,98 @@ const styles = StyleSheet.create({
     color: "#2563eb",
     fontWeight: "600",
     fontSize: 16,
+  },
+  rescheduleContainer: {
+      marginTop: 12,
+      backgroundColor: "#f9fafb",
+      padding: 8, // Reduced from 12
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: "#e5e7eb"
+  },
+  rescheduleLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#374151",
+      marginBottom: 8
+  },
+  dateTimeRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  dateButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    gap: 8,
+    shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 1,
+  },
+  activeDateButton: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.inputBg,
+  },
+  activeDateText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
+  },
+  pickerContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 0, // Removed horizontal padding
+    alignItems: "center", // Center the picker
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    // SHADOWS.small
+    shadowColor: "#000",
+    shadowOffset: {
+    width: 0,
+    height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  dateText: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  rescheduleActions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginTop: 12,
+      gap: 12
+  },
+  cancelActionBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+  },
+  cancelActionText: {
+      color: "#6b7280",
+      fontWeight: "600",
+      fontSize: 14
+  },
+  saveActionBtn: {
+      backgroundColor: COLORS.primary,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 8
+  },
+  saveActionText: {
+      color: "#fff",
+      fontWeight: "600",
+      fontSize: 14
   },
   detailsContainer: {
     padding: 20,
@@ -436,4 +700,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
+
 });

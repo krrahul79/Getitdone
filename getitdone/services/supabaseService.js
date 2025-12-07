@@ -26,6 +26,27 @@ export const SupabaseService = {
     return { data, error };
   },
 
+  async logActivity({ group_id, action_type, target_name, metadata }) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("activity_logs").insert([
+      {
+        group_id,
+        actor_id: user.id,
+        action_type,
+        target_name,
+        metadata,
+      },
+    ]);
+
+    if (error) {
+      console.error("Error logging activity:", error);
+    }
+  },
+
   async signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -322,6 +343,14 @@ export const SupabaseService = {
         .map((a) => a.profiles)
         .filter(Boolean),
     };
+
+    // Log Activity
+    await this.logActivity({
+      group_id: res.group_id,
+      action_type: "RESCHEDULE_TASK",
+      target_name: res.title,
+      metadata: { new_date: newDate },
+    });
 
     return { data: res, error: null };
   },
