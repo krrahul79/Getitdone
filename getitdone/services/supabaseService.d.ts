@@ -15,6 +15,7 @@ export const SupabaseService: {
   getGroupTasks(groupId: string): Promise<{ data: Task[]; error: any }>;
   getTask(taskId: string): Promise<{ data: Task & { groupName?: string }; error: any }>;
   createTask(taskData: Partial<Task>): Promise<{ data: Task; error: any }>;
+  updateTaskDetails(taskId: string, updates: { title?: string; description?: string }, assigneeIds?: string[]): Promise<{ error: any }>;
   updateTaskStatus(taskId: string, isCompleted: boolean): Promise<{ data: any; error: any }>;
   rescheduleTask(taskId: string, newDate: string): Promise<{ data: any; error: any }>;
   assignUsersToTask(taskId: string, userIds: string[]): Promise<{ data: any; error: any }>;

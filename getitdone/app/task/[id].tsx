@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { FontAwesome } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SupabaseService } from "../../services/supabaseService";
 import { useTasks } from "../TaskContext";
 
@@ -37,11 +37,13 @@ export default function TaskDetailScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempDate, setTempDate] = useState(new Date());
 
-  useEffect(() => {
-    if (id) {
-      fetchTaskDetails();
-    }
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        fetchTaskDetails();
+      }
+    }, [id])
+  );
 
   const fetchTaskDetails = async () => {
     setLoading(true);

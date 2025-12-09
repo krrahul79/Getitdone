@@ -318,6 +318,51 @@ export const SupabaseService = {
     return { data: res, error: null };
   },
 
+  async updateTaskDetails(taskId, updates, assigneeIds) {
+    // 1. Update basic fields
+    const { error: updateError } = await supabase
+      .from("tasks")
+      .update({
+        title: updates.title,
+        description: updates.description,
+      })
+      .eq("id", taskId);
+
+    if (updateError) return { error: updateError };
+
+    // 2. Sync Assignees if provided
+    if (assigneeIds && Array.isArray(assigneeIds)) {
+      // Fetch current assignees
+      const { data: currentAssignees, error: fetchError } = await supabase
+        .from("task_assignees")
+        .select("user_id")
+        .eq("task_id", taskId);
+        
+      if (!fetchError) {
+        const currentIds = (currentAssignees || []).map(a => a.user_id);
+        
+        // Determine to add
+        const toAdd = assigneeIds.filter(id => !currentIds.includes(id));
+        // Determine to remove
+        const toRemove = currentIds.filter(id => !assigneeIds.includes(id));
+
+        if (toAdd.length > 0) {
+           await supabase.from("task_assignees").insert(
+             toAdd.map(uid => ({ task_id: taskId, user_id: uid }))
+           );
+        }
+        if (toRemove.length > 0) {
+           await supabase.from("task_assignees").delete()
+             .eq("task_id", taskId)
+             .in("user_id", toRemove);
+        }
+      }
+    }
+
+    // 3. Return updated task
+    return this.getTask(taskId);
+  },
+
   async rescheduleTask(taskId, newDate) {
     const { data, error } = await supabase
       .from("tasks")
