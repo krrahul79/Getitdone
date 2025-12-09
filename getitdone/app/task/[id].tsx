@@ -19,18 +19,19 @@ import { FontAwesome } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SupabaseService } from "../../services/supabaseService";
 import { useTasks } from "../TaskContext";
+import { useToast } from "../../context/ToastContext";
 
 export default function TaskDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { refreshMyTasks } = useTasks();
+  const { showToast } = useToast();
 
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
 
-  // Reschedule State
   // Reschedule State
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -81,7 +82,7 @@ export default function TaskDetailScreen() {
       console.error("Error updating status:", error);
       // Revert on error
       setIsComplete(!newStatus);
-      Alert.alert("Error", "Failed to update task status.");
+      showToast("Error", "Failed to update task status.", "error");
     }
   };
 
@@ -108,12 +109,12 @@ export default function TaskDetailScreen() {
       );
       if (error) throw error;
       setTask(data);
-      Alert.alert("Success", "Task rescheduled.");
+      showToast("Success", "Task rescheduled.", "success");
       setIsRescheduling(false);
       refreshMyTasks();
     } catch (e) {
       console.error("Reschedule Error:", e);
-      Alert.alert("Error", "Failed to reschedule task.");
+      showToast("Error", "Failed to reschedule task.", "error");
     } finally {
       setLoading(false);
     }
@@ -144,8 +145,6 @@ export default function TaskDetailScreen() {
     }
   };
 
-
-
   const handleEdit = () => {
     router.push({ pathname: "/task/[id]/edit", params: { id: task.id } });
   };
@@ -164,7 +163,7 @@ export default function TaskDetailScreen() {
             // await SupabaseService.deleteTask(task.id);
             // refreshMyTasks();
             // router.back();
-            Alert.alert("Not Implemented", "Delete functionality is coming soon.");
+            showToast("Info", "Delete functionality is coming soon.", "info");
           },
         },
       ]

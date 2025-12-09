@@ -18,6 +18,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { SupabaseService } from "../../services/supabaseService";
 import { useGroups } from "../GroupsContext";
 import { useProfile } from "../ProfileContext";
+import { useToast } from "../../context/ToastContext";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
 export default function AddEditTaskScreen() {
@@ -25,6 +26,7 @@ export default function AddEditTaskScreen() {
   const params = useLocalSearchParams();
   const { groups, getMembersForGroup } = useGroups();
   const { profile } = useProfile();
+  const { showToast } = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -65,11 +67,11 @@ export default function AddEditTaskScreen() {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert("Error", "Please enter a task title");
+      showToast("Validation Error", "Please enter a task title", "error");
       return;
     }
     if (!selectedGroupId) {
-      Alert.alert("Error", "Please select a group");
+       showToast("Validation Error", "Please select a group", "error");
       return;
     }
 
@@ -86,13 +88,14 @@ export default function AddEditTaskScreen() {
       const { error } = await SupabaseService.createTask(taskData);
 
       if (error) {
-        Alert.alert("Error", "Failed to create task");
+        showToast("Error", "Failed to create task", "error");
       } else {
+        showToast("Success", isEditMode ? "Task updated" : "Task created successfully", "success");
         router.back();
       }
     } catch (e) {
       console.error("Error saving task:", e);
-      Alert.alert("Error", "An unexpected error occurred");
+      showToast("Error", "An unexpected error occurred", "error");
     } finally {
       setLoading(false);
     }

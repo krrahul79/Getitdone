@@ -16,11 +16,13 @@ import type { Group, UserProfile, Task } from "../../services/types";
 import { useTasks } from "../TaskContext";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
+import { useToast } from "../../context/ToastContext";
 
 export default function GroupDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { tasks, refreshMyTasks } = useTasks();
+  const { showToast } = useToast();
 
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<UserProfile[]>([]);
@@ -62,6 +64,8 @@ export default function GroupDetailsScreen() {
     // For now, we'll just call the service and refresh.
     await SupabaseService.updateTaskStatus(taskId, !currentStatus);
     refreshMyTasks();
+    // Optional: showToast("Success", "Task status updated", "success");
+    // (Keeping it silent for quick checking is often better, but adding error handling is key)
   };
 
   const handleInvite = async () => {
@@ -72,6 +76,7 @@ export default function GroupDetailsScreen() {
       });
     } catch (error) {
       console.error("Error sharing:", error);
+      showToast("Error", "Failed to share invite code", "error");
     }
   };
 

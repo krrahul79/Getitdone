@@ -20,6 +20,7 @@ import { useProfile } from "./ProfileContext";
 import { useGroups } from "./GroupsContext";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../constants/theme";
 import { FontAwesome } from "@expo/vector-icons";
+import { useToast } from "../context/ToastContext";
 
 const { width } = Dimensions.get("window");
 
@@ -33,10 +34,11 @@ export default function LoginScreen() {
   const router = useRouter();
   const { setProfile } = useProfile();
   const { refreshGroups } = useGroups();
+  const { showToast } = useToast();
 
   const handleAuth = async () => {
     if (!email || !password || (isSignUp && !fullName)) {
-      Alert.alert("Error", "Please fill in all fields");
+      showToast("Error", "Please fill in all fields", "error");
       return;
     }
 
@@ -53,17 +55,14 @@ export default function LoginScreen() {
       const { data, error } = result;
 
       if (error) {
-        Alert.alert("Authentication Failed", error.message);
+        showToast("Authentication Failed", error.message, "error");
         setLoading(false);
         return;
       }
 
       if (isSignUp && data?.user && !data?.session) {
         setLoading(false);
-        Alert.alert(
-          "Check your email",
-          "Please click the confirmation link sent to your email to finish signing up."
-        );
+        showToast("Check your email", "Please click the confirmation link sent to your email.", "info");
         return;
       }
 
@@ -86,7 +85,7 @@ export default function LoginScreen() {
       }
     } catch (e) {
       console.error("Auth Exception:", e);
-      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      showToast("Error", "An unexpected error occurred. Please try again.", "error");
     } finally {
       setLoading(false);
     }

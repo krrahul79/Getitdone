@@ -13,12 +13,14 @@ import { useRouter } from "expo-router";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
 import { useProfile } from "../ProfileContext";
+import { useToast } from "../../context/ToastContext";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile, setProfile } = useProfile();
+  const { showToast } = useToast();
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
   const handleLogout = async () => {
@@ -48,7 +50,7 @@ export default function ProfileScreen() {
     {
       icon: "help-circle-outline",
       label: "Help & Support",
-      onPress: () => Alert.alert("Support", "Contact us at support@getitdone.com"),
+      onPress: () => showToast("Support", "Contact us at support@getitdone.com", "info"),
       color: COLORS.warning,
     },
     {

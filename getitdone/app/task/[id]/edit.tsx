@@ -17,10 +17,12 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constan
 
 // Types
 import { UserProfile } from "../../../services/types";
+import { useToast } from "../../../context/ToastContext";
 
 export default function EditTaskScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { showToast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,7 +52,7 @@ export default function EditTaskScreen() {
       
       if (taskError || !task) {
         console.error("Error fetching task:", taskError);
-        Alert.alert("Error", "Failed to load task details.");
+        showToast("Error", "Failed to load task details.", "error");
         return;
       }
 
@@ -90,7 +92,7 @@ export default function EditTaskScreen() {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert("Validation", "Title is required.");
+      showToast("Validation", "Title is required.", "error");
       return;
     }
 
@@ -104,14 +106,14 @@ export default function EditTaskScreen() {
 
       if (error) {
         console.error("Update Error:", error);
-        Alert.alert("Error", "Failed to update task.");
+        showToast("Error", "Failed to update task.", "error");
       } else {
-        Alert.alert("Success", "Task updated successfully.");
+        showToast("Success", "Task updated successfully.", "success");
         router.back();
       }
     } catch (e) {
       console.error("Exception saving task:", e);
-      Alert.alert("Error", "An unexpected error occurred.");
+      showToast("Error", "An unexpected error occurred.", "error");
     } finally {
       setSaving(false);
     }

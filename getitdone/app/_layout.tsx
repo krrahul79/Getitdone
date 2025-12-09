@@ -3,18 +3,21 @@ import { SafeAreaView, StyleSheet } from "react-native";
 import { ProfileProvider } from "./ProfileContext";
 import { GroupsProvider } from "./GroupsContext";
 import { TaskProvider } from "./TaskContext";
+import { ToastProvider } from "../context/ToastContext";
 
 export default function RootLayout() {
   return (
-    <ProfileProvider>
-      <GroupsProvider>
-        <TaskProvider>
-          <SafeAreaView style={styles.safeArea}>
-            <Stack screenOptions={{ headerShown: false }} />
-          </SafeAreaView>
-        </TaskProvider>
-      </GroupsProvider>
-    </ProfileProvider>
+    <ToastProvider>
+      <ProfileProvider>
+        <GroupsProvider>
+          <TaskProvider>
+            <SafeAreaView style={styles.safeArea}>
+              <Stack screenOptions={{ headerShown: false }} />
+            </SafeAreaView>
+          </TaskProvider>
+        </GroupsProvider>
+      </ProfileProvider>
+    </ToastProvider>
   );
 }
 
