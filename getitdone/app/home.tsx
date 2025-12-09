@@ -14,7 +14,7 @@ import { SupabaseService } from "../services/supabaseService";
 import { useProfile } from "./ProfileContext";
 
 interface Task {
-  id: number;
+  id: string;
   title: string;
   groupName: string;
   dueDate: string;
@@ -24,20 +24,31 @@ interface Task {
 const { width } = Dimensions.get("window");
 
 function getRelativeDate(dateStr: string) {
-  const today = new Date("2025-11-03");
   const date = new Date(dateStr);
-  const diffTime = date.getTime() - today.getTime();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const diffTime = compareDate.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Tomorrow";
-  if (diffDays < 7) return `In ${diffDays} days`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  if (diffDays === 0) return `Today, ${timeStr}`;
+  if (diffDays === 1) return `Tomorrow, ${timeStr}`;
+  if (diffDays > 1 && diffDays < 7) return `In ${diffDays} days, ${timeStr}`;
+  
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default function HomeScreen() {
   const { profile } = useProfile();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [groupId, setGroupId] = useState<number | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const router = useRouter();
 
   React.useEffect(() => {
@@ -74,11 +85,11 @@ export default function HomeScreen() {
     fetchUserNameAndTasks();
   }, []);
 
-  const handleToggleComplete = async (taskId: number) => {
+  const handleToggleComplete = async (taskId: string) => {
     try {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
-      const newStatus = task.isComplete ? "incomplete" : "complete";
+      const newStatus = !task.isComplete;
       // Update status in Supabase
       await SupabaseService.updateTaskStatus(taskId, newStatus);
       // Update local state

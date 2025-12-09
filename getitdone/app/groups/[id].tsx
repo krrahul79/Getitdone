@@ -193,7 +193,12 @@ export default function GroupDetailsScreen() {
                       <Text style={styles.taskTitle}>{task.title}</Text>
                       {task.due_date && (
                         <Text style={styles.taskDate}>
-                          Due {new Date(task.due_date).toLocaleDateString()}
+                          Due {new Date(task.due_date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
                         </Text>
                       )}
                       <View style={styles.assigneesRow}>

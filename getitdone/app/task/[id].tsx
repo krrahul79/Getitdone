@@ -108,6 +108,7 @@ export default function TaskDetailScreen() {
       setTask(data);
       Alert.alert("Success", "Task rescheduled.");
       setIsRescheduling(false);
+      refreshMyTasks();
     } catch (e) {
       console.error("Reschedule Error:", e);
       Alert.alert("Error", "Failed to reschedule task.");
@@ -351,11 +352,13 @@ export default function TaskDetailScreen() {
             label="Due Date"
             value={
               task.due_date
-                ? new Date(task.due_date).toLocaleDateString("en-US", {
+                ? new Date(task.due_date).toLocaleString("en-US", {
                     weekday: "long",
                     year: "numeric",
                     month: "long",
                     day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
                   })
                 : "No due date"
             }
