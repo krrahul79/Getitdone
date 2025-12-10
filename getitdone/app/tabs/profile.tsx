@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,12 +16,26 @@ import { useProfile } from "../ProfileContext";
 import { useToast } from "../../context/ToastContext";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
+import { Image } from "react-native";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile, setProfile } = useProfile();
   const { showToast } = useToast();
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [stats, setStats] = useState({ tasksDone: 0, groupsCount: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+        loadStats();
+    }, [])
+  );
+
+  const loadStats = async () => {
+      const data = await SupabaseService.getProfileStats();
+      setStats(data);
+  };
 
   const handleLogout = async () => {
     try {
@@ -77,21 +91,25 @@ export default function ProfileScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>
-                {profile?.full_name?.[0] || "?"}
-              </Text>
+              {profile?.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>
+                    {profile?.full_name?.[0] || "?"}
+                </Text>
+              )}
             </View>
             <Text style={styles.name}>{profile?.full_name || "User"}</Text>
             <Text style={styles.email}>{profile?.email || "user@example.com"}</Text>
             
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>12</Text>
+                <Text style={styles.statNumber}>{stats.tasksDone}</Text>
                 <Text style={styles.statLabel}>Tasks Done</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>3</Text>
+                <Text style={styles.statNumber}>{stats.groupsCount}</Text>
                 <Text style={styles.statLabel}>Groups</Text>
               </View>
             </View>
@@ -207,6 +225,11 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: "#fff",
     ...SHADOWS.small,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontFamily: FONTS.extraBold,

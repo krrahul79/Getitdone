@@ -605,4 +605,75 @@ export const SupabaseService = {
 
     return { error };
   },
+  async uploadAvatar(localUri) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not logged in");
+
+      // 1. Read file as base64 (Expo FileSystem)
+      // Note: Supabase JS v2 supports uploading from ArrayBuffer/Blob/File. 
+      // In React Native/Expo, we can use FormData or ArrayBuffer.
+      // However, the simplest cross-platform way in Expo often involves `fetch` to get the blob.
+      
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+      const arrayBuffer = await new Response(blob).arrayBuffer();
+
+      const fileExt = localUri.split(".").pop().toLowerCase();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 2. Upload to 'avatars' bucket
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, arrayBuffer, {
+          contentType: `image/${fileExt}`,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // 3. Get Public URL
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      return { publicUrl: data.publicUrl, error: null };
+    } catch (e) {
+      console.error("Upload Avatar Error:", e);
+      return { publicUrl: null, error: e };
+    }
+  },
+
+  async getProfileStats() {
+    const {
+        data: { user },
+      } = await supabase.auth.getUser();
+    if (!user) return { tasksDone: 0, groupsCount: 0 };
+    
+    try {
+        // Groups count
+        const { count: groupsCount } = await supabase
+            .from("group_members")
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+
+        // Tasks Done (assigned to user and completed)
+        // We can do this by selecting from task_assignees and joining tasks
+        const { data: assignedTasks } = await supabase
+            .from('task_assignees')
+            .select('task_id, tasks!inner(is_completed)')
+            .eq('user_id', user.id)
+            .eq('tasks.is_completed', true);
+            
+        const tasksDone = assignedTasks ? assignedTasks.length : 0;
+
+        return { 
+            groupsCount: groupsCount || 0,
+            tasksDone: tasksDone
+        };
+    } catch(e) {
+        console.error("Stats error", e);
+        return { groupsCount: 0, tasksDone: 0 };
+    }
+  }
 };
