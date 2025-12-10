@@ -8,6 +8,10 @@ import {
   TextInput,
   Animated,
   Easing,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -59,60 +63,67 @@ export default function DeleteGroupModal({
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        <View style={styles.centered}>
-          <Animated.View
-            style={[styles.modal, { transform: [{ scale: scaleAnim }] }]}
-          >
-            <View style={styles.headerIcon}>
-                <View style={styles.iconCircle}>
-                  <Ionicons name="trash-outline" size={32} color={COLORS.error} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+             <View style={styles.centered}>
+            <Animated.View
+                style={[styles.modal, { transform: [{ scale: scaleAnim }] }]}
+            >
+                <View style={styles.headerIcon}>
+                    <View style={styles.iconCircle}>
+                    <Ionicons name="trash-outline" size={32} color={COLORS.error} />
+                    </View>
                 </View>
-            </View>
 
-            <Text style={styles.header}>Delete Group?</Text>
-            <Text style={styles.bodyText}>
-              This is a permanent action. All tasks will be deleted for{" "}
-              <Text style={styles.bold}>all members</Text> of this group.
-            </Text>
-            
-            <View style={styles.inputContainer}>
-                 <Text style={styles.instructionText}>
-                  Type <Text style={styles.bold}>{groupName}</Text> to confirm.
+                <Text style={styles.header}>Delete Group?</Text>
+                <Text style={styles.bodyText}>
+                This is a permanent action. All tasks will be deleted for{" "}
+                <Text style={styles.bold}>all members</Text> of this group.
                 </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    isFocused && styles.inputFocused
-                  ]}
-                  value={confirmationText}
-                  onChangeText={setConfirmationText}
-                  placeholder="Type group name"
-                  placeholderTextColor={COLORS.textTertiary}
-                  autoFocus={true} // Auto focus when modal opens usually good UX here
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
-                />
-            </View>
+                
+                <View style={styles.inputContainer}>
+                    <Text style={styles.instructionText}>
+                    Type <Text style={styles.bold}>{groupName}</Text> to confirm.
+                    </Text>
+                    <TextInput
+                    style={[
+                        styles.input,
+                        isFocused && styles.inputFocused
+                    ]}
+                    value={confirmationText}
+                    onChangeText={setConfirmationText}
+                    placeholder="Type group name"
+                    placeholderTextColor={COLORS.textTertiary}
+                    autoFocus={true} // Auto focus when modal opens usually good UX here
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    />
+                </View>
 
-            <View style={styles.buttonCol}>
-              <TouchableOpacity
-                style={[
-                  styles.deleteBtn,
-                  isDeleteDisabled && styles.deleteBtnDisabled,
-                ]}
-                onPress={handleDelete}
-                disabled={isDeleteDisabled}
-              >
-                <Text style={styles.deleteBtnText}>Delete Group</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
+                <View style={styles.buttonCol}>
+                <TouchableOpacity
+                    style={[
+                    styles.deleteBtn,
+                    isDeleteDisabled && styles.deleteBtnDisabled,
+                    ]}
+                    onPress={handleDelete}
+                    disabled={isDeleteDisabled}
+                >
+                    <Text style={styles.deleteBtnText}>Delete Group</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                </View>
+            </Animated.View>
             </View>
-          </Animated.View>
-        </View>
-      </Animated.View>
+          </TouchableWithoutFeedback>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

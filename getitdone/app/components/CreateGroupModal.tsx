@@ -9,6 +9,8 @@ import {
   Animated,
   Easing,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
@@ -118,7 +120,10 @@ export default function CreateGroupModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.overlay}
+      >
         <Animated.View
           style={[
             styles.modal,
@@ -221,7 +226,7 @@ export default function CreateGroupModal({
             </View>
           </ScrollView>
         </Animated.View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -8,6 +8,8 @@ import {
   TextInput,
   Animated,
   Easing,
+  Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -26,7 +28,8 @@ export default function RenameGroupModal({
 }) {
   const [groupName, setGroupName] = useState(currentName);
   const [isFocused, setIsFocused] = useState(false);
-  const slideAnim = useRef(new Animated.Value(0)).current; // Start at 0 for hidden
+  const slideAnim = useRef(new Animated.Value(0)).current; 
+  const keyboardHeight = useRef(new Animated.Value(0)).current;
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -47,6 +50,32 @@ export default function RenameGroupModal({
     }
   }, [visible, currentName]);
 
+  useEffect(() => {
+    const keyboardWillShow = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const keyboardWillHide = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(keyboardWillShow, (e) => {
+      Animated.timing(keyboardHeight, {
+        toValue: e.endCoordinates.height,
+        duration: e.duration || 250,
+        useNativeDriver: false, // Layout animation
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(keyboardWillHide, (e) => {
+      Animated.timing(keyboardHeight, {
+        toValue: 0,
+        duration: e.duration || 250,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const handleSubmit = () => {
     if (!groupName.trim()) return;
     onRename(groupName.trim());
@@ -57,7 +86,7 @@ export default function RenameGroupModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <Animated.View style={[styles.overlay, { paddingBottom: keyboardHeight }]}>
         <Animated.View
           style={[
             styles.modal,
@@ -110,7 +139,7 @@ export default function RenameGroupModal({
             </View>
           </View>
         </Animated.View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
