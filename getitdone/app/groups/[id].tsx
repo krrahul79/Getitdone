@@ -112,7 +112,10 @@ export default function GroupDetailsScreen() {
             <TouchableOpacity style={styles.actionBtn} onPress={handleInvite}>
               <Ionicons name="share-outline" size={24} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
+            <TouchableOpacity 
+              style={styles.actionBtn} 
+              onPress={() => router.push(`/groups/${id}/settings`)}
+            >
               <Ionicons name="settings-outline" size={24} color="#fff" />
             </TouchableOpacity>
           </View>

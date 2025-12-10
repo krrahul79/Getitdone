@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  Animated,
+  Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
@@ -28,6 +30,33 @@ export default function JoinGroupModal({
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setCode("");
+      setError(null);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+        fadeAnim.setValue(0);
+        slideAnim.setValue(0);
+    }
+  }, [visible]);
 
   const handleJoin = async () => {
     if (!code.trim()) return;
@@ -49,59 +78,81 @@ export default function JoinGroupModal({
     }
   };
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <KeyboardAvoidingView
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               style={styles.keyboardView}
             >
-              <View style={styles.modal}>
-                <View style={styles.headerRow}>
-                  <Text style={styles.header}>Join Group</Text>
-                  <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                    <Ionicons name="close" size={24} color={COLORS.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.description}>
-                  Enter the invite code shared by the group admin.
-                </Text>
-
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.input}
-                    value={code}
-                    onChangeText={(text) => {
-                      setCode(text);
-                      setError(null);
-                    }}
-                    placeholder="e.g., A8X-992"
-                    placeholderTextColor={COLORS.textTertiary}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                  />
-                </View>
-
-                {error && <Text style={styles.errorText}>{error}</Text>}
-
-                <TouchableOpacity
-                  style={[styles.joinBtn, loading && { opacity: 0.7 }]}
-                  onPress={handleJoin}
-                  disabled={loading || !code.trim()}
+              <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
+                <Animated.View 
+                    style={[
+                        styles.modal,
+                        {
+                            transform: [{
+                                translateY: slideAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [600, 0]
+                                })
+                            }]
+                        }
+                    ]}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.joinBtnText}>Join Group</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+                    <View style={styles.headerRow}>
+                    <Text style={styles.header}>Join Group</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                        <Ionicons name="close" size={24} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.description}>
+                    Enter the invite code shared by the group admin.
+                    </Text>
+
+                    <View style={styles.inputContainer}>
+                    <TextInput
+                        style={[
+                            styles.input,
+                            isFocused && styles.inputFocused,
+                            error && styles.inputError
+                        ]}
+                        value={code}
+                        onChangeText={(text) => {
+                        setCode(text);
+                        setError(null);
+                        }}
+                        placeholder="e.g., A8X-992"
+                        placeholderTextColor={COLORS.textTertiary}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
+                    />
+                    </View>
+
+                    {error && <Text style={styles.errorText}>{error}</Text>}
+
+                    <TouchableOpacity
+                    style={[styles.joinBtn, loading && { opacity: 0.7 }]}
+                    onPress={handleJoin}
+                    disabled={loading || !code.trim()}
+                    >
+                    {loading ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={styles.joinBtnText}>Join Group</Text>
+                    )}
+                    </TouchableOpacity>
+                </Animated.View>
+              </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
           </TouchableWithoutFeedback>
-        </View>
+        </Animated.View>
       </TouchableWithoutFeedback>
     </Modal>
   );
@@ -115,13 +166,14 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     justifyContent: "flex-end",
+    flex: 1,
   },
   modal: {
     backgroundColor: "#fff",
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
-    padding: SPACING.xl,
-    paddingBottom: SPACING.xxl, // Extra padding for bottom safe area
+    padding: SPACING.l,
+    paddingBottom: SPACING.xl + 20,
     ...SHADOWS.large,
   },
   headerRow: {
@@ -140,9 +192,10 @@ const styles = StyleSheet.create({
   },
   description: {
     fontFamily: FONTS.medium,
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.textSecondary,
     marginBottom: SPACING.l,
+    lineHeight: 20,
   },
   inputContainer: {
     marginBottom: SPACING.m,
@@ -151,13 +204,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inputBg,
     borderRadius: BORDER_RADIUS.m,
     padding: SPACING.m,
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: FONTS.bold,
     color: COLORS.text,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "transparent",
     textAlign: "center",
-    letterSpacing: 2,
+    letterSpacing: 4,
+  },
+  inputFocused: {
+      borderColor: COLORS.primary,
+      backgroundColor: "#fff",
+  },
+  inputError: {
+      borderColor: COLORS.error,
+      color: COLORS.error,
   },
   errorText: {
     fontFamily: FONTS.medium,
@@ -168,14 +229,14 @@ const styles = StyleSheet.create({
   },
   joinBtn: {
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.m,
     paddingVertical: SPACING.m,
     alignItems: "center",
     ...SHADOWS.primary,
   },
   joinBtnText: {
     fontFamily: FONTS.bold,
-    fontSize: 18,
+    fontSize: 16,
     color: "#fff",
   },
 });

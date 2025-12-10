@@ -161,6 +161,36 @@ export const SupabaseService = {
     return { error: joinError };
   },
 
+  async updateGroup(groupId, updates) {
+    const { data, error } = await supabase
+      .from("groups")
+      .update(updates)
+      .eq("id", groupId)
+      .select()
+      .single();
+    return { data, error };
+  },
+
+  async leaveGroup(groupId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Not logged in" };
+
+    const { error } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("user_id", user.id);
+    return { error };
+  },
+
+  async deleteGroup(groupId) {
+    // RLS should handle allowing this only for creators/admins
+    const { error } = await supabase.from("groups").delete().eq("id", groupId);
+    return { error };
+  },
+
   // --- TASKS ---
   async getGroupTasks(groupId) {
     const { data, error } = await supabase

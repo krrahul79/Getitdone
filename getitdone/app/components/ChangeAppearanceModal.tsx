@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,16 +7,20 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
+  ScrollView,
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
-const COLORS = [
+const GROUP_COLORS = [
   { bg: "#ef4444" }, // red
   { bg: "#3b82f6" }, // blue
   { bg: "#22c55e" }, // green
   { bg: "#eab308" }, // yellow
   { bg: "#a855f7" }, // purple
   { bg: "#ec4899" }, // pink
+  { bg: "#f97316" }, // orange
+  { bg: "#06b6d4" }, // cyan
 ];
 
 const ICONS = [
@@ -28,6 +32,10 @@ const ICONS = [
   "paw",
   "plane",
   "car",
+  "star",
+  "music",
+  "gamepad",
+  "book",
 ];
 
 export default function ChangeAppearanceModal({
@@ -45,20 +53,24 @@ export default function ChangeAppearanceModal({
 }) {
   const [selectedColor, setSelectedColor] = useState(currentColor);
   const [selectedIcon, setSelectedIcon] = useState(currentIcon);
-  const slideAnim = React.useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     setSelectedColor(currentColor);
     setSelectedIcon(currentIcon);
     if (visible) {
       Animated.timing(slideAnim, {
-        toValue: 0,
+        toValue: 1,
         duration: 300,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }).start();
     } else {
-      slideAnim.setValue(1);
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
     }
   }, [visible, currentColor, currentIcon]);
 
@@ -66,8 +78,10 @@ export default function ChangeAppearanceModal({
     onChangeAppearance(selectedColor, selectedIcon);
   };
 
+  if (!visible && !slideAnim) return null;
+
   return (
-    <Modal visible={visible} animationType="fade" transparent>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Animated.View
           style={[
@@ -77,7 +91,7 @@ export default function ChangeAppearanceModal({
                 {
                   translateY: slideAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 500],
+                    outputRange: [600, 0],
                   }),
                 },
               ],
@@ -86,62 +100,76 @@ export default function ChangeAppearanceModal({
         >
           {/* Header */}
           <View style={styles.headerRow}>
-            <Text style={styles.header}>Change Appearance</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={28} color="#6b7280" />
+            <Text style={styles.header}>Appearance</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={24} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
-          {/* Preview */}
-          <View style={styles.previewSection}>
-            <Text style={styles.previewLabel}>PREVIEW</Text>
-            <View
-              style={[styles.previewCircle, { backgroundColor: selectedColor }]}
-            >
-              <FontAwesome5 name={selectedIcon as any} size={40} color="#fff" />
-            </View>
-          </View>
-          {/* Color Picker */}
-          <Text style={[styles.label, { marginTop: 10 }]}>Pick a color</Text>
-          <View style={styles.colorRow}>
-            {COLORS.map((c) => (
-              <TouchableOpacity
-                key={c.bg}
-                style={[
-                  styles.colorCircle,
-                  {
-                    backgroundColor: c.bg,
-                    borderColor: selectedColor === c.bg ? c.bg : "#fff",
-                    borderWidth: selectedColor === c.bg ? 3 : 1,
-                  },
-                ]}
-                onPress={() => setSelectedColor(c.bg)}
-              />
-            ))}
-          </View>
-          {/* Icon Picker */}
-          <Text style={[styles.label, { marginTop: 18 }]}>Pick an icon</Text>
-          <View style={styles.iconGrid}>
-            {ICONS.map((icon) => (
-              <TouchableOpacity
-                key={icon}
-                style={[
-                  styles.iconBtn,
-                  selectedIcon === icon && styles.iconBtnSelected,
-                ]}
-                onPress={() => setSelectedIcon(icon)}
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            {/* Preview */}
+            <View style={styles.previewSection}>
+              <Text style={styles.previewLabel}>PREVIEW</Text>
+              <View
+                style={[styles.previewCircle, { backgroundColor: selectedColor }]}
               >
-                <FontAwesome5
-                  name={icon as any}
-                  size={22}
-                  color={selectedIcon === icon ? "#fff" : "#2563eb"}
-                />
-              </TouchableOpacity>
-            ))}
+                <FontAwesome5 name={selectedIcon as any} size={40} color="#fff" />
+              </View>
+            </View>
+
+            {/* Color Picker */}
+            <Text style={styles.label}>Color</Text>
+            <View style={styles.colorRow}>
+              {GROUP_COLORS.map((c) => (
+                <TouchableOpacity
+                  key={c.bg}
+                  style={[
+                    styles.colorCircle,
+                    {
+                      backgroundColor: c.bg,
+                      borderColor: selectedColor === c.bg ? c.bg : "transparent",
+                      borderWidth: selectedColor === c.bg ? 0 : 0,
+                    },
+                    selectedColor === c.bg && styles.selectedColorStats
+                  ]}
+                  onPress={() => setSelectedColor(c.bg)}
+                >
+                    {selectedColor === c.bg && <Ionicons name="checkmark" size={16} color="#fff" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Icon Picker */}
+            <Text style={styles.label}>Icon</Text>
+            <View style={styles.iconGrid}>
+              {ICONS.map((icon) => (
+                <TouchableOpacity
+                  key={icon}
+                  style={[
+                    styles.iconBtn,
+                    selectedIcon === icon && styles.iconBtnSelected,
+                  ]}
+                  onPress={() => setSelectedIcon(icon)}
+                >
+                  <FontAwesome5
+                    name={icon as any}
+                    size={20}
+                    color={selectedIcon === icon ? "#fff" : COLORS.primary}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Footer Actions */}
+          <View style={styles.footer}>
+             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+             </TouchableOpacity>
+             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.saveBtnText}>Save</Text>
+             </TouchableOpacity>
           </View>
-          {/* Save Button */}
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
-          </TouchableOpacity>
         </Animated.View>
       </View>
     </Modal>
@@ -156,100 +184,127 @@ const styles = StyleSheet.create({
   },
   modal: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 32,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
+    paddingHorizontal: SPACING.l,
+    paddingTop: SPACING.l,
+    paddingBottom: SPACING.xl + 10,
+    maxHeight: "85%", // Limit height
+    ...SHADOWS.large,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    marginBottom: SPACING.m,
   },
   header: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1f2937",
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: COLORS.text,
+  },
+  closeBtn: {
+      padding: SPACING.xs,
+  },
+  scrollContent: {
+      paddingBottom: SPACING.l,
   },
   previewSection: {
     alignItems: "center",
-    paddingVertical: 18,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 18,
-    marginBottom: 8,
+    paddingVertical: SPACING.l,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: BORDER_RADIUS.l,
+    marginBottom: SPACING.l,
   },
   previewLabel: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "600",
-    marginBottom: 8,
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    color: COLORS.textTertiary,
+    marginBottom: SPACING.m,
+    letterSpacing: 1,
   },
   previewCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
+    ...SHADOWS.medium,
   },
   label: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 6,
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+    marginTop: SPACING.m,
+    marginBottom: SPACING.s,
   },
   colorRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 2,
+    flexWrap: "wrap",
+    gap: SPACING.m,
+    marginBottom: SPACING.m,
   },
   colorCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedColorStats: {
+      borderWidth: 3,
+      borderColor: COLORS.inputBg, // Ring effect
+      ...SHADOWS.small,
+      transform: [{scale: 1.1}]
   },
   iconGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 18,
-    marginTop: 2,
+    gap: SPACING.s,
+    marginBottom: SPACING.m,
   },
   iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#f3f4f6",
+    width: (48), // approx
+    height: 48,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: COLORS.inputBg,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
-    marginBottom: 10,
+    flexBasis: "22%", // Create a grid
+    flexGrow: 1,
   },
   iconBtnSelected: {
-    backgroundColor: "#2563eb",
+    backgroundColor: COLORS.primary,
+  },
+  footer: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: SPACING.m,
+      marginTop: SPACING.s,
+      paddingTop: SPACING.m,
+      borderTopWidth: 1,
+      borderTopColor: COLORS.border,
+  },
+  cancelBtn: {
+      paddingVertical: SPACING.m,
+      paddingHorizontal: SPACING.l,
+  },
+  cancelBtnText: {
+      fontFamily: FONTS.medium,
+      fontSize: 16,
+      color: COLORS.textSecondary,
   },
   saveBtn: {
-    backgroundColor: "#2563eb",
-    borderRadius: 14,
-    paddingVertical: 14,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.m,
+    paddingVertical: SPACING.m,
+    paddingHorizontal: SPACING.xl,
     alignItems: "center",
-    marginTop: 10,
-    shadowColor: "#2563eb",
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 2,
+    ...SHADOWS.primary,
   },
   saveBtnText: {
     color: "#fff",
-    fontWeight: "700",
-    fontSize: 18,
+    fontFamily: FONTS.bold,
+    fontSize: 16,
   },
 });

@@ -1,29 +1,24 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { SupabaseService } from "../../../services/supabaseService";
+import type { Group, UserProfile } from "../../../services/types";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import RenameGroupModal from "../../components/RenameGroupModal";
 import ChangeAppearanceModal from "../../components/ChangeAppearanceModal";
 import LeaveGroupModal from "../../components/LeaveGroupModal";
 import DeleteGroupModal from "../../components/DeleteGroupModal";
-
-const MOCK_GROUP = {
-  id: "1",
-  name: "Household",
-  icon: "home",
-  color: "#3b82f6",
-  members: [
-    { id: "user123", name: "Alex", avatar: "A", isAdmin: true },
-    { id: "user456", name: "Jane", avatar: "J", isAdmin: false },
-  ],
-};
-const isUserAdmin = true;
+import { useToast } from "../../../context/ToastContext";
 
 function SectionHeader({ title }: { title: string }) {
   return <Text style={styles.sectionHeader}>{title}</Text>;
@@ -35,41 +30,45 @@ function SettingsItem({
   text,
   hasArrow = true,
   onPress,
+  danger = false,
 }: {
   icon: string;
   iconBg: string;
   text: string;
   hasArrow?: boolean;
   onPress: () => void;
+  danger?: boolean;
 }) {
   return (
     <TouchableOpacity style={styles.settingsItem} onPress={onPress}>
       <View style={[styles.settingsIcon, { backgroundColor: iconBg }]}>
-        <FontAwesome5 name={icon as any} size={20} color="#fff" />
+        <FontAwesome5 name={icon as any} size={18} color="#fff" />
       </View>
-      <Text style={styles.settingsText}>{text}</Text>
+      <Text style={[styles.settingsText, danger && { color: COLORS.error }]}>{text}</Text>
       {hasArrow && (
-        <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+        <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
       )}
     </TouchableOpacity>
   );
 }
 
-function MemberItem({ member }: { member: (typeof MOCK_GROUP.members)[0] }) {
-  const handleManageMember = () => alert(`Managing member: ${member.name}`);
+function MemberItem({ member, isAdmin, isCurrentUserFactory, onKick }: { member: any, isAdmin: boolean, isCurrentUserFactory: boolean, onKick: () => void }) {
   return (
     <View style={styles.memberItem}>
       <View style={styles.memberAvatar}>
-        <Text style={styles.memberAvatarText}>{member.avatar}</Text>
+        <Text style={styles.memberAvatarText}>{member.full_name?.[0] || "?"}</Text>
       </View>
       <View style={{ flex: 1, marginLeft: 14 }}>
-        <Text style={styles.memberName}>{member.name}</Text>
-        {member.isAdmin && <Text style={styles.adminBadge}>Admin</Text>}
+        <Text style={styles.memberName}>{member.full_name}</Text>
+        {member.is_admin && <Text style={styles.adminBadge}>Admin</Text>}
       </View>
-      {isUserAdmin && !member.isAdmin && (
-        <TouchableOpacity onPress={handleManageMember}>
-          <Text style={styles.manageBtn}>Manage</Text>
-        </TouchableOpacity>
+      {/* Show kick button if current user is admin, targeting non-admin, and not self */}
+      {isAdmin && !member.is_admin && !isCurrentUserFactory && (
+         // Just a placeholder for kick functionality if needed later, generic 'Manage' logic
+         // For now, let's keep it read-only for members list in settings unless requested
+         <TouchableOpacity onPress={onKick}>
+           {/* <Text style={styles.manageBtn}>Remove</Text> */}
+         </TouchableOpacity>
       )}
     </View>
   );
@@ -78,135 +77,240 @@ function MemberItem({ member }: { member: (typeof MOCK_GROUP.members)[0] }) {
 export default function GroupSettingsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { showToast } = useToast();
+
+  const [group, setGroup] = useState<Group | null>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Modals
   const [renameModalVisible, setRenameModalVisible] = React.useState(false);
-  const [groupName, setGroupName] = React.useState(MOCK_GROUP.name);
-  const [appearanceModalVisible, setAppearanceModalVisible] =
-    React.useState(false);
-  const [groupColor, setGroupColor] = React.useState(MOCK_GROUP.color);
-  const [groupIcon, setGroupIcon] = React.useState(MOCK_GROUP.icon);
+  const [appearanceModalVisible, setAppearanceModalVisible] = React.useState(false);
   const [leaveModalVisible, setLeaveModalVisible] = React.useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = React.useState(false);
 
+  useEffect(() => {
+    fetchData();
+  }, [id]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const { user, profile } = await SupabaseService.getCurrentUser();
+      setCurrentUser(user ? { ...profile, id: user.id } : null);
+
+      if (typeof id === 'string') {
+        const { data, error } = await SupabaseService.getGroupWithMembers(id);
+        if (error) {
+           console.error("Error fetching group:", error);
+           showToast("Error", "Failed to load group settings", "error");
+        } else if (data) {
+           setGroup(data.group);
+           setMembers(data.members || []);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBack = () => router.back();
-  const handleRename = () => setRenameModalVisible(true);
-  const handleEditAppearance = () => setAppearanceModalVisible(true);
-  const handleInvite = () => alert("Opening invite modal...");
-  const handleLeave = () => setLeaveModalVisible(true);
-  const handleDelete = () => setDeleteModalVisible(true);
 
-  const handleRenameGroup = (newName: string) => {
-    setGroupName(newName);
+  const handleRenameGroup = async (newName: string) => {
+    if (!group) return;
     setRenameModalVisible(false);
-    // TODO: persist change to backend
+    
+    // Optimistic
+    const oldName = group.name;
+    setGroup({ ...group, name: newName });
+
+    const { error } = await SupabaseService.updateGroup(group.id, { name: newName });
+    if (error) {
+      setGroup({ ...group, name: oldName }); // Revert
+      showToast("Error", "Failed to rename group", "error");
+    } else {
+      showToast("Success", "Group renamed", "success");
+    }
   };
 
-  const handleChangeAppearance = (color: string, icon: string) => {
-    setGroupColor(color);
-    setGroupIcon(icon);
+  const handleChangeAppearance = async (color: string, icon: string) => {
+    if (!group) return;
     setAppearanceModalVisible(false);
-    // TODO: persist change to backend
+
+    const oldColor = group.color;
+    const oldIcon = group.icon;
+    setGroup({ ...group, color, icon });
+
+    const { error } = await SupabaseService.updateGroup(group.id, { color, icon });
+    if (error) {
+      setGroup({ ...group, color: oldColor, icon: oldIcon });
+      showToast("Error", "Failed to update appearance", "error");
+    } else {
+      showToast("Success", "Appearance updated", "success");
+    }
   };
 
-  const handleLeaveGroup = () => {
+  const handleLeaveGroup = async () => {
+    if (!group) return;
     setLeaveModalVisible(false);
-    // TODO: remove user from group and navigate away
-    alert("You have left the group. (Navigating back to Groups screen...)");
+    const { error } = await SupabaseService.leaveGroup(group.id);
+    if (error) {
+      showToast("Error", "Failed to leave group", "error");
+    } else {
+      showToast("Success", "You left the group", "success");
+      router.replace("/tabs/groups"); 
+    }
   };
 
-  const handleDeleteGroup = () => {
+  const handleDeleteGroup = async () => {
+    if (!group) return;
     setDeleteModalVisible(false);
-    // TODO: delete group and navigate away
-    alert(
-      "Group has been permanently deleted. (Navigating back to Groups screen...)"
-    );
+    const { error } = await SupabaseService.deleteGroup(group.id);
+    if (error) {
+      showToast("Error", "Failed to delete group", "error");
+    } else {
+      showToast("Success", "Group deleted", "success");
+      router.replace("/tabs/groups");
+    }
   };
+
+  const handleInvite = () => {
+     // Navigate to invite or show share sheet (could reuse logic from main screen or add specific invite screen)
+     // For now, simpler is creating an alert with code
+     Alert.alert("Invite Code", `Share this code: ${group?.join_code}`);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (!group || !currentUser) {
+    return (
+      <View style={styles.container}>
+        <Text>Group not found</Text>
+      </View>
+    );
+  }
+
+  const isUserAdmin = group.created_by === currentUser.id;
 
   return (
     <View style={styles.container}>
+      <LinearGradient
+         colors={[COLORS.primary, COLORS.primaryDark]}
+         style={styles.headerBackground}
+      />
+      
       {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={handleBack} style={styles.headerIconBtn}>
-          <Ionicons name="chevron-back" size={26} color="#6b7280" />
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Group Settings</Text>
         <View style={{ width: 32 }} />
       </View>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 50 }}>
         {/* Group Info Preview */}
-        <View style={styles.groupPreview}>
-          <View
-            style={[styles.groupIconCircle, { backgroundColor: groupColor }]}
-          >
-            <FontAwesome5 name={groupIcon as any} size={40} color="#fff" />
+        <View style={styles.card}>
+          <View style={[styles.groupIconCircle, { backgroundColor: group.color }]}>
+            <FontAwesome5 name={group.icon as any} size={40} color="#fff" />
           </View>
-          <Text style={styles.groupName}>{groupName}</Text>
+          <Text style={styles.groupName}>{group.name}</Text>
+          <Text style={styles.groupCode}>Code: {group.join_code}</Text>
         </View>
+
         {/* General Section */}
         <SectionHeader title="General" />
-        <SettingsItem
-          icon="pen"
-          iconBg="#3b82f6"
-          text="Rename Group"
-          onPress={handleRename}
-        />
-        <SettingsItem
-          icon="palette"
-          iconBg="#a855f7"
-          text="Change Appearance"
-          onPress={handleEditAppearance}
-        />
+        <View style={styles.sectionCard}>
+          <SettingsItem
+            icon="pen"
+            iconBg={COLORS.primary}
+            text="Rename Group"
+            onPress={() => setRenameModalVisible(true)}
+          />
+          <SettingsItem
+            icon="palette"
+            iconBg={COLORS.secondary}
+            text="Change Appearance"
+            onPress={() => setAppearanceModalVisible(true)}
+          />
+        </View>
+
         {/* Members Section */}
         <SectionHeader title="Members" />
-        <SettingsItem
-          icon="user-plus"
-          iconBg="#22c55e"
-          text="Invite Member"
-          onPress={handleInvite}
-        />
-        {MOCK_GROUP.members.map((member) => (
-          <MemberItem key={member.id} member={member} />
-        ))}
+        <View style={styles.sectionCard}>
+          <SettingsItem
+            icon="user-plus"
+            iconBg={COLORS.success}
+            text="Invite Member"
+            onPress={handleInvite}
+          />
+          {members.map((member) => (
+            <MemberItem 
+              key={member.id} 
+              member={member} 
+              isAdmin={isUserAdmin}
+              isCurrentUserFactory={member.id === currentUser.id}
+              onKick={() => console.log("Kick", member.id)} 
+            />
+          ))}
+        </View>
+
         {/* Danger Zone Section */}
         <SectionHeader title="Danger Zone" />
-        <SettingsItem
-          icon="sign-out-alt"
-          iconBg="#ef4444"
-          text="Leave Group"
-          hasArrow={false}
-          onPress={handleLeave}
-        />
-        {isUserAdmin && (
+        <View style={[styles.sectionCard, { borderColor: COLORS.error, borderWidth: 1 }]}>
           <SettingsItem
-            icon="trash-alt"
-            iconBg="#b91c1c"
-            text="Delete Group"
+            icon="sign-out-alt"
+            iconBg={COLORS.warning}
+            text="Leave Group"
             hasArrow={false}
-            onPress={handleDelete}
+            danger
+            onPress={() => setLeaveModalVisible(true)}
           />
-        )}
+          {isUserAdmin && (
+            <SettingsItem
+              icon="trash-alt"
+              iconBg={COLORS.error}
+              text="Delete Group"
+              hasArrow={false}
+              danger
+              onPress={() => setDeleteModalVisible(true)}
+            />
+          )}
+        </View>
       </ScrollView>
+
+      {/* Modals */}
       <RenameGroupModal
         visible={renameModalVisible}
-        currentName={groupName}
+        currentName={group.name}
         onClose={() => setRenameModalVisible(false)}
         onRename={handleRenameGroup}
       />
       <ChangeAppearanceModal
         visible={appearanceModalVisible}
-        currentColor={groupColor}
-        currentIcon={groupIcon}
+        currentColor={group.color}
+        currentIcon={group.icon}
         onClose={() => setAppearanceModalVisible(false)}
         onChangeAppearance={handleChangeAppearance}
       />
       <LeaveGroupModal
         visible={leaveModalVisible}
-        groupName={groupName}
+        groupName={group.name}
         onClose={() => setLeaveModalVisible(false)}
         onLeave={handleLeaveGroup}
       />
       <DeleteGroupModal
         visible={deleteModalVisible}
-        groupName={groupName}
+        groupName={group.name}
         onClose={() => setDeleteModalVisible(false)}
         onDelete={handleDeleteGroup}
       />
@@ -217,130 +321,151 @@ export default function GroupSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    paddingHorizontal: SPACING.l,
+    paddingTop: SPACING.xl + 10,
+    paddingBottom: SPACING.l,
   },
   headerIconBtn: {
     width: 32,
     alignItems: "center",
   },
   headerTitle: {
+    fontFamily: FONTS.bold,
     fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
+    color: "#fff",
     flex: 1,
     textAlign: "center",
   },
-  groupPreview: {
-    alignItems: "center",
-    paddingVertical: 32,
+  card: {
     backgroundColor: "#fff",
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    marginBottom: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    marginHorizontal: SPACING.l,
+    marginTop: SPACING.s,
+    borderRadius: BORDER_RADIUS.l,
+    padding: SPACING.xl,
+    alignItems: "center",
+    ...SHADOWS.medium,
   },
   groupIconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: SPACING.m,
   },
   groupName: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1f2937",
+    fontFamily: FONTS.bold,
+    fontSize: 22,
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  groupCode: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.inputBg,
+    paddingHorizontal: SPACING.m,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.m,
   },
   sectionHeader: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "700",
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.textSecondary,
     textTransform: "uppercase",
-    marginLeft: 20,
-    marginTop: 24,
-    marginBottom: 8,
+    marginLeft: SPACING.xl,
+    marginTop: SPACING.l,
+    marginBottom: SPACING.s,
+  },
+  sectionCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: SPACING.l,
+    borderRadius: BORDER_RADIUS.m,
+    overflow: "hidden",
+    ...SHADOWS.small,
   },
   settingsItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: SPACING.m,
+    paddingHorizontal: SPACING.m,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: COLORS.border,
   },
   settingsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: SPACING.m,
   },
   settingsText: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#1f2937",
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
     flex: 1,
   },
   memberItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: SPACING.m,
+    paddingHorizontal: SPACING.m,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: COLORS.border,
   },
   memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#e5e7eb",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.inputBg,
     alignItems: "center",
     justifyContent: "center",
   },
   memberAvatarText: {
-    color: "#374151",
-    fontWeight: "700",
-    fontSize: 18,
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.primary,
   },
   memberName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: COLORS.text,
   },
   adminBadge: {
-    backgroundColor: "#dbeafe",
-    color: "#2563eb",
-    fontWeight: "700",
-    fontSize: 11,
-    borderRadius: 6,
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    marginLeft: 8,
+    marginTop: 2,
     alignSelf: "flex-start",
   },
   manageBtn: {
-    color: "#6b7280",
-    fontWeight: "600",
-    fontSize: 15,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    color: COLORS.error,
+    fontFamily: FONTS.bold,
+    fontSize: 13,
   },
 });
