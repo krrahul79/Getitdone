@@ -30,11 +30,14 @@ export interface Task {
 
 export interface ActivityItem {
   id: number;
-  description: string;
+  action_type: string;
+  target_name?: string;
+  metadata?: any;
+  type?: string; 
+  description?: string;
   created_at: string;
-  type: "task_created" | "task_completed" | "group_joined" | "group_created";
   user_id: string;
-  profiles: {
+  actor: {
     full_name: string;
     avatar_url: string | null;
   };

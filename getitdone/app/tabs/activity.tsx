@@ -9,22 +9,13 @@ import {
 } from "react-native";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { SupabaseService } from "../../services/supabaseService";
+import { ActivityItem } from "../../services/types";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
 
-interface ActivityItem {
-  id: number;
-  description: string;
-  created_at: string;
-  type: "task_created" | "task_completed" | "group_joined" | "group_created";
-  user_id: string;
-  profiles: {
-    full_name: string;
-    avatar_url: string | null;
-  };
-}
+
 
 function getRelativeTime(dateStr: string) {
   const date = new Date(dateStr);
@@ -38,18 +29,59 @@ function getRelativeTime(dateStr: string) {
   return date.toLocaleDateString();
 }
 
+const getActivityType = (item: ActivityItem) => {
+  if (item.action_type) return item.action_type;
+  return item.type || "unknown";
+};
+
 function getActivityIcon(type: string) {
   switch (type) {
     case "task_completed":
+    case "completed_task":
       return { name: "check-circle", color: COLORS.success, bg: "rgba(16, 185, 129, 0.1)" };
     case "task_created":
+    case "created_task":
       return { name: "plus-circle", color: COLORS.primary, bg: "rgba(99, 102, 241, 0.1)" };
     case "group_joined":
       return { name: "user-plus", color: COLORS.secondary, bg: "rgba(236, 72, 153, 0.1)" };
+    case "assigned_task":
+      return { name: "user-tag", color: COLORS.secondary, bg: "rgba(236, 72, 153, 0.1)" };
     case "group_created":
       return { name: "users", color: COLORS.warning, bg: "rgba(245, 158, 11, 0.1)" };
+    case "reopened_task":
+      return { name: "undo", color: COLORS.warning, bg: "rgba(245, 158, 11, 0.1)" };
+    case "RESCHEDULE_TASK":
+      return { name: "calendar-alt", color: COLORS.primary, bg: "rgba(99, 102, 241, 0.1)" };
     default:
       return { name: "bell", color: COLORS.textSecondary, bg: COLORS.inputBg };
+  }
+}
+
+function getActivityDescription(item: ActivityItem) {
+  if (item.description) return item.description;
+
+  const type = getActivityType(item);
+  switch (type) {
+    case "RESCHEDULE_TASK":
+      const date = item.metadata?.new_date ? new Date(item.metadata.new_date).toLocaleDateString() : "a new date";
+      return `Rescheduled task "${item.target_name || 'Unknown'}" to ${date}`;
+    case "task_created":
+    case "created_task":
+      return `Created task "${item.target_name || 'Unknown'}"`;
+    case "task_completed":
+    case "completed_task":
+      return `Completed task "${item.target_name || 'Unknown'}"`;
+    case "reopened_task":
+      return `Reopened task "${item.target_name || 'Unknown'}"`;
+    case "assigned_task":
+      const assignee = item.metadata?.assigned_to || "someone";
+      return `Assigned "${item.target_name || 'Unknown'}" to ${assignee}`;
+    case "group_joined":
+      return `Joined the group`;
+    case "group_created":
+        return `Created group "${item.target_name || 'Unknown'}"`;
+    default:
+      return "New activity";
   }
 }
 
@@ -109,7 +141,9 @@ export default function ActivityScreen() {
         ) : (
           <View style={styles.timeline}>
             {activities.map((item, index) => {
-              const iconData = getActivityIcon(item.type);
+              const type = getActivityType(item);
+              const iconData = getActivityIcon(type);
+              const description = getActivityDescription(item);
               const isLast = index === activities.length - 1;
 
               return (
@@ -125,13 +159,13 @@ export default function ActivityScreen() {
                     <View style={styles.card}>
                       <View style={styles.cardHeader}>
                         <Text style={styles.userName}>
-                          {item.profiles?.full_name || "Unknown User"}
+                          {item.actor?.full_name || "Unknown User"}
                         </Text>
                         <Text style={styles.timeAgo}>
                           {getRelativeTime(item.created_at)}
                         </Text>
                       </View>
-                      <Text style={styles.description}>{item.description}</Text>
+                      <Text style={styles.description}>{description}</Text>
                     </View>
                   </View>
                 </View>

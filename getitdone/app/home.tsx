@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,15 @@ import {
   SafeAreaView,
   ScrollView,
   Dimensions,
+  RefreshControl,
+  StatusBar,
 } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { SupabaseService } from "../services/supabaseService";
-import { useProfile } from "./ProfileContext";
+import { useProfile } from "./ProfileContext"; // In the same directory
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../constants/theme";
 
 interface Task {
   id: string;
@@ -48,58 +52,69 @@ function getRelativeDate(dateStr: string) {
 export default function HomeScreen() {
   const { profile } = useProfile();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [groupId, setGroupId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  React.useEffect(() => {
-    const fetchUserNameAndTasks = async () => {
-      try {
-        // Fetch user's groups
-        const groupsRes = await SupabaseService.getMyGroups();
-        const firstGroup =
-          groupsRes.data && groupsRes.data.length > 0
-            ? groupsRes.data[0]
-            : null;
-        if (firstGroup) {
-          setGroupId(firstGroup.id);
-          // Fetch tasks for the first group
-          const fetchedTasks = await SupabaseService.getGroupTasks(
-            firstGroup.id
-          );
-          // Map Supabase fields to local Task type
-          const mappedTasks = (fetchedTasks.data || []).map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            groupName: firstGroup.name,
-            dueDate: task.due_date,
-            isComplete: task.is_completed,
-          }));
-          setTasks(mappedTasks);
-        } else {
-          setTasks([]);
-        }
-      } catch (error) {
-        console.error("Error fetching data from Supabase:", error);
+  const fetchUserNameAndTasks = async () => {
+    try {
+      // Fetch user's groups
+      const groupsRes = await SupabaseService.getMyGroups();
+      const firstGroup =
+        groupsRes.data && groupsRes.data.length > 0
+          ? groupsRes.data[0]
+          : null;
+      if (firstGroup) {
+        // Fetch tasks for the first group
+        const fetchedTasks = await SupabaseService.getGroupTasks(
+          firstGroup.id
+        );
+        // Map Supabase fields to local Task type
+        const mappedTasks = (fetchedTasks.data || []).map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          groupName: firstGroup.name,
+          dueDate: task.due_date,
+          isComplete: task.is_completed,
+        }));
+        setTasks(mappedTasks);
+      } else {
+        setTasks([]);
       }
-    };
-    fetchUserNameAndTasks();
-  }, []);
+    } catch (error) {
+      console.error("Error fetching data from Supabase:", error);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserNameAndTasks();
+    }, [])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserNameAndTasks();
+    setRefreshing(false);
+  };
 
   const handleToggleComplete = async (taskId: string) => {
     try {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
       const newStatus = !task.isComplete;
-      // Update status in Supabase
-      await SupabaseService.updateTaskStatus(taskId, newStatus);
-      // Update local state
+      
+      // Update local state optimistic
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId ? { ...t, isComplete: !t.isComplete } : t
         )
       );
+
+      // Update status in Supabase
+      await SupabaseService.updateTaskStatus(taskId, newStatus);
     } catch (error) {
       console.error("Error updating task completion:", error);
+      // Revert if needed (omitted for brevity, but good practice)
     }
   };
 
@@ -107,387 +122,357 @@ export default function HomeScreen() {
   const completeTasks = tasks.filter((t) => t.isComplete);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerWelcome}>Welcome back,</Text>
-          <Text style={styles.headerName}>{profile?.full_name || ""}</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.primaryDark]}
+        style={styles.headerBackground}
+      />
+
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerWelcome}>Welcome back,</Text>
+            <Text style={styles.headerName}>{profile?.full_name || "Guest"}</Text>
+          </View>
+          <Pressable
+            style={styles.headerAvatar}
+            onPress={() => router.push("/tabs/profile")}
+          >
+            <Text style={styles.headerAvatarText}>
+                {profile?.full_name?.[0] || "?"}
+            </Text>
+          </Pressable>
         </View>
-        <Pressable
-          style={styles.headerAvatar}
-          onPress={() => router.replace("/tabs/profile")}
+
+        <ScrollView
+          style={styles.scrollArea}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#fff"
+            />
+          }
         >
-          <FontAwesome name="user" size={28} color="#6b7280" />
-        </Pressable>
-      </View>
-      <ScrollView
-        style={styles.scrollArea}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
-        {/* Summary Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryText}>You have</Text>
-          <Text style={styles.summaryCount}>
-            {incompleteTasks.length}{" "}
-            {incompleteTasks.length === 1 ? "task" : "tasks"}
-          </Text>
-          <Text style={styles.summarySub}>pending for this week.</Text>
-        </View>
-        {/* Task List */}
-        <View style={styles.tasksSection}>
-          <Text style={styles.tasksTitle}>Your Tasks</Text>
-          {incompleteTasks.length === 0 && completeTasks.length === 0 ? (
-            <View style={styles.emptyStateContainer}>
-              <FontAwesome
-                name="smile-o"
-                size={64}
-                color="#93c5fd"
-                style={{ marginBottom: 16 }}
-              />
-              <Text style={styles.emptyStateTitle}>No tasks yet!</Text>
-              <Text style={styles.emptyStateText}>
-                Enjoy your free time or add a new task to get started.
-              </Text>
-              <Pressable
-                style={styles.emptyStateButton}
-                onPress={() => router.push("/task/add")}
-              >
-                <Text style={styles.emptyStateButtonText}>Add Task</Text>
-              </Pressable>
+          {/* Summary Card - Glassmorphismish look */}
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryContent}>
+                <View>
+                    <Text style={styles.summaryLabel}>Pending Tasks</Text>
+                    <Text style={styles.summaryCount}>
+                        {incompleteTasks.length}
+                    </Text>
+                </View>
+                <View style={styles.summaryIconContainer}>
+                    <Ionicons name="time" size={32} color={COLORS.primary} />
+                </View>
             </View>
-          ) : (
-            <>
-              {incompleteTasks.map((task) => (
-                <View key={task.id} style={styles.taskItem}>
-                  <Pressable onPress={() => handleToggleComplete(task.id)}>
-                    <FontAwesome
-                      name={task.isComplete ? "check-circle" : "circle"}
-                      size={24}
-                      color={task.isComplete ? "#10b981" : "#d1d5db"}
-                      style={{ marginRight: 12 }}
-                    />
-                  </Pressable>
-                  <View style={{ flex: 1 }}>
+            <Text style={styles.summarySub}>
+                {incompleteTasks.length > 0 
+                  ? "Keep up the momentum!" 
+                  : "All caught up! 🎉"}
+            </Text>
+          </View>
+
+          {/* Task List */}
+          <View style={styles.tasksSection}>
+            <Text style={styles.sectionTitle}>Your Tasks</Text>
+            
+            {incompleteTasks.length === 0 && completeTasks.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={64}
+                  color="#cbd5e1"
+                  style={{ marginBottom: 16 }}
+                />
+                <Text style={styles.emptyStateTitle}>No tasks yet</Text>
+                <Text style={styles.emptyStateText}>
+                  Add a task to get started on your journey!
+                </Text>
+              </View>
+            ) : (
+              <>
+                {incompleteTasks.map((task) => (
+                  <View key={task.id} style={styles.taskCard}>
                     <Pressable
-                      onPress={() =>
-                        router.push({
-                          pathname: "/task/[id]",
-                          params: { id: task.id },
-                        })
-                      }
+                        style={styles.checkboxArea}
+                        onPress={() => handleToggleComplete(task.id)}
                     >
-                      <Text
-                        style={[
-                          styles.taskTitle,
-                          task.isComplete && styles.taskTitleComplete,
-                        ]}
-                      >
-                        {task.title}
-                      </Text>
+                      <Ionicons
+                        name={task.isComplete ? "checkmark-circle" : "ellipse-outline"}
+                        size={28}
+                        color={task.isComplete ? COLORS.success : COLORS.textTertiary}
+                      />
                     </Pressable>
-                    <Text style={styles.taskGroup}>{task.groupName}</Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.taskDue,
-                      getRelativeDate(task.dueDate) === "Today" &&
-                        styles.taskDueToday,
-                    ]}
-                  >
-                    {getRelativeDate(task.dueDate)}
-                  </Text>
-                </View>
-              ))}
-              {completeTasks.length > 0 && (
-                <View style={{ marginTop: 24 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <Text style={styles.completedTitle}>Completed</Text>
-                    <Pressable
-                      onPress={() =>
-                        setTasks((prev) => prev.filter((t) => !t.isComplete))
-                      }
+                    
+                    <Pressable 
+                        style={styles.taskContent}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/task/[id]",
+                            params: { id: task.id },
+                          })
+                        }
                     >
-                      <Text style={styles.clearAllText}>Clear All</Text>
+                        <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
+                        <View style={styles.taskMetaRow}>
+                            <View style={styles.groupBadge}>
+                                <Text style={styles.groupBadgeText}>{task.groupName}</Text>
+                            </View>
+                            {task.dueDate && (
+                                <Text style={[
+                                    styles.taskDue,
+                                    getRelativeDate(task.dueDate).includes("Today") && styles.taskDueUrgent
+                                ]}>
+                                    {getRelativeDate(task.dueDate)}
+                                </Text>
+                            )}
+                        </View>
                     </Pressable>
                   </View>
-                  {completeTasks.map((task) => (
-                    <View key={task.id} style={styles.taskItem}>
-                      <Pressable onPress={() => handleToggleComplete(task.id)}>
-                        <FontAwesome
-                          name={task.isComplete ? "check-circle" : "circle"}
-                          size={24}
-                          color={task.isComplete ? "#10b981" : "#d1d5db"}
-                          style={{ marginRight: 12 }}
-                        />
-                      </Pressable>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[styles.taskTitle, styles.taskTitleComplete]}
+                ))}
+
+                {completeTasks.length > 0 && (
+                  <View style={styles.completedSection}>
+                    <Text style={styles.completedHeader}>Completed</Text>
+                    {completeTasks.map((task) => (
+                      <View key={task.id} style={[styles.taskCard, styles.completedCard]}>
+                        <Pressable
+                            style={styles.checkboxArea}
+                            onPress={() => handleToggleComplete(task.id)}
                         >
-                          {task.title}
-                        </Text>
-                        <Text style={styles.taskGroup}>{task.groupName}</Text>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={28}
+                            color={COLORS.success}
+                          />
+                        </Pressable>
+                        <View style={styles.taskContent}>
+                           <Text style={[styles.taskTitle, styles.completedText]}>
+                                {task.title}
+                           </Text>
+                        </View>
                       </View>
-                      <Text style={styles.taskDue}>
-                        {getRelativeDate(task.dueDate)}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </>
-          )}
-        </View>
-      </ScrollView>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+
       {/* Floating Action Button */}
-      {(incompleteTasks.length > 0 || completeTasks.length > 0) && (
-        <Pressable style={styles.fab} onPress={() => router.push("/task/add")}>
-          <FontAwesome name="plus" size={32} color="#fff" />
-        </Pressable>
-      )}
-      {/* Bottom Navigation Bar */}
-      <View style={styles.bottomNav}>
-        <Pressable style={styles.navItem}>
-          <FontAwesome name="home" size={24} color="#2563eb" />
-          <Text style={styles.navTextActive}>Home</Text>
-        </Pressable>
-        <Pressable style={styles.navItem}>
-          <FontAwesome name="users" size={24} color="#9ca3af" />
-          <Text style={styles.navText}>Groups</Text>
-        </Pressable>
-        <Pressable style={styles.navItem}>
-          <FontAwesome name="pie-chart" size={24} color="#9ca3af" />
-          <Text style={styles.navText}>Activity</Text>
-        </Pressable>
-        <Pressable style={styles.navItem}>
-          <FontAwesome name="user" size={24} color="#9ca3af" />
-          <Text style={styles.navText}>Profile</Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+      <Pressable 
+        style={styles.fab} 
+        onPress={() => router.push("/task/add")}
+      >
+        <Ionicons name="add" size={32} color="#fff" />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f3f4f6", // bg-gray-100
+    backgroundColor: COLORS.background,
+  },
+  headerBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200, // Reduced height to prevent text overlap
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
-    backgroundColor: "#fff",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingHorizontal: SPACING.l,
+    paddingTop: SPACING.m,
+    paddingBottom: SPACING.l,
   },
   headerWelcome: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: "#6b7280",
+    color: "rgba(255, 255, 255, 0.8)",
+    marginBottom: 4,
   },
   headerName: {
+    fontFamily: FONTS.bold,
     fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
+    color: "#fff",
   },
   headerAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  headerAvatarText: {
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: "#fff",
   },
   scrollArea: {
     flex: 1,
+    paddingHorizontal: SPACING.l,
   },
   summaryCard: {
-    backgroundColor: "#2563eb",
-    margin: 20,
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 10,
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.l,
+    marginBottom: SPACING.xl,
+    ...SHADOWS.medium,
   },
-  summaryText: {
-    color: "#dbeafe",
-    fontSize: 16,
-    fontWeight: "400",
+  summaryContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: SPACING.m,
+  },
+  summaryLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
   },
   summaryCount: {
-    color: "#fff",
-    fontSize: 36,
-    fontWeight: "800",
-    marginVertical: 4,
+    fontFamily: FONTS.extraBold,
+    fontSize: 42,
+    color: COLORS.text,
+    lineHeight: 48,
+  },
+  summaryIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.inputBg,
+    alignItems: "center",
+    justifyContent: "center",
   },
   summarySub: {
-    color: "#93c5fd",
-    fontSize: 16,
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.success,
   },
   tasksSection: {
-    paddingHorizontal: 20,
+    flex: 1,
   },
-  tasksTitle: {
+  sectionTitle: {
+    fontFamily: FONTS.bold,
     fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
-    marginBottom: 12,
+    color: COLORS.text,
+    marginBottom: SPACING.m,
+    marginTop: SPACING.s, 
   },
-  taskItem: {
+  taskCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: BORDER_RADIUS.m,
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    padding: SPACING.m,
+    marginBottom: SPACING.s, // 8
+    ...SHADOWS.small,
+  },
+  checkboxArea: {
+    marginRight: SPACING.m,
+  },
+  taskContent: {
+    flex: 1,
   },
   taskTitle: {
-    fontSize: 17,
-    fontWeight: "500",
-    color: "#1f2937",
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 6,
   },
-  taskTitleComplete: {
-    color: "#9ca3af",
-    textDecorationLine: "line-through",
+  taskMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  taskGroup: {
-    fontSize: 13,
-    color: "#6b7280",
-  },
-  taskDue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6b7280",
-    marginLeft: 8,
-  },
-  taskDueToday: {
-    color: "#ef4444",
-  },
-  completedTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#6b7280",
-    marginBottom: 8,
-  },
-  clearAllText: {
-    fontSize: 13,
-    color: "#ef4444",
-    fontWeight: "700",
+  groupBadge: {
+    backgroundColor: COLORS.inputBg,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    borderRadius: 6,
   },
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 112,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#2563eb",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 10,
-    zIndex: 10,
+  groupBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: COLORS.textSecondary,
   },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 88,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 5,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navText: {
+  taskDue: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
-    color: "#9ca3af",
-    fontWeight: "600",
-    marginTop: 2,
+    color: COLORS.textTertiary,
   },
-  navTextActive: {
-    fontSize: 12,
-    color: "#2563eb",
-    fontWeight: "700",
-    marginTop: 2,
+  taskDueUrgent: {
+    color: COLORS.error,
+    fontFamily: FONTS.bold,
   },
-  emptyStateContainer: {
+  completedSection: {
+    marginTop: SPACING.l,
+  },
+  completedHeader: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.m,
+  },
+  completedCard: {
+      opacity: 0.7,
+      backgroundColor: "#f8fafc",
+      shadowOpacity: 0
+  },
+  completedText: {
+      textDecorationLine: "line-through",
+      color: COLORS.textSecondary
+  },
+  emptyState: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 48,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    marginTop: 24,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    paddingVertical: 40,
   },
   emptyStateTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#2563eb",
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.textSecondary,
     marginBottom: 8,
   },
   emptyStateText: {
-    fontSize: 15,
-    color: "#6b7280",
-    marginBottom: 20,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textTertiary,
     textAlign: "center",
-    paddingHorizontal: 24,
   },
-  emptyStateButton: {
-    backgroundColor: "#2563eb",
-    borderRadius: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  emptyStateButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    ...SHADOWS.large,
+    shadowColor: COLORS.primary, // Glow effect
   },
 });
