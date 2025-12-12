@@ -98,7 +98,12 @@ export default function GroupSettingsScreen() {
     setLoading(true);
     try {
       const { user, profile } = await SupabaseService.getCurrentUser();
-      setCurrentUser(user ? { ...profile, id: user.id } : null);
+      setCurrentUser((user && profile) ? { 
+        ...profile, 
+        id: user.id,
+        full_name: profile.full_name || "",
+        avatar_url: profile.avatar_url || null
+      } : null);
 
       if (typeof id === 'string') {
         const { data, error } = await SupabaseService.getGroupWithMembers(id);

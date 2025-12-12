@@ -66,11 +66,10 @@ export default function LoginScreen() {
         return;
       }
 
-      const profileResult = await SupabaseService.getCurrentUser();
-      const { profile } = profileResult;
+      const { user, profile } = await SupabaseService.getCurrentUser();
 
-      if (profile) {
-        setProfile(profile);
+      if (profile && user && user.email) {
+        setProfile({ ...profile, email: user.email });
         try {
           await refreshGroups();
         } catch (e) {
