@@ -128,14 +128,50 @@ export const SupabaseService = {
   },
 
   async getMyGroups() {
-    // RLS automatically filters this query to only show groups the user is in.
-    // We don't need manual filters.
-    const { data, error } = await supabase.from("groups").select(`
-        id, name, icon, color, join_code,
-        group_members!inner (user_id)
-      `);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { data: [], error: "Not logged in" };
 
-    return { data, error };
+    try {
+        // 1. Get IDs of groups the user belongs to
+        const { data: memberships, error: memberError } = await supabase
+            .from("group_members")
+            .select("group_id")
+            .eq("user_id", user.id);
+        
+        if (memberError) return { data: [], error: memberError };
+        
+        const myGroupIds = (memberships || []).map(m => m.group_id);
+
+        if (myGroupIds.length === 0) {
+            return { data: [], error: null };
+        }
+
+        // 2. Fetch groups with member count using the IDs
+        const { data: groups, error: groupsError } = await supabase
+            .from("groups")
+            .select(`
+                id, name, icon, color, join_code,
+                group_members(count)
+            `)
+            .in("id", myGroupIds);
+
+        if (groupsError) return { data: [], error: groupsError };
+
+        // 3. Transform to provide _count.members for the UI
+        // Supabase returns group_members as [{ count: N }] when using (count)
+        const transformedData = groups.map(g => ({
+            ...g,
+            _count: { 
+                members: g.group_members && g.group_members[0] ? g.group_members[0].count : 0 
+            }
+        }));
+
+        return { data: transformedData, error: null };
+    } catch (e) {
+        return { data: [], error: e };
+    }
   },
 
   async joinGroupByCode(code) {
@@ -144,21 +180,44 @@ export const SupabaseService = {
     } = await supabase.auth.getUser();
     if (!user) return { error: "Not logged in" };
 
+    const normalizedCode = code.trim().toUpperCase();
+    console.log(`[SupabaseService] Joining group with code: ${normalizedCode}`);
+
     // 1. Find Group
     const { data: group, error: searchError } = await supabase
       .from("groups")
       .select("id")
-      .eq("join_code", code)
+      .eq("join_code", normalizedCode)
       .single();
 
-    if (searchError || !group) return { error: "Invalid Group Code" };
+    if (searchError || !group) {
+        console.log("[SupabaseService] Group not found for code:", normalizedCode);
+        return { error: "Group not found. Check the code and try again." };
+    }
 
-    // 2. Join
+    // 2. Check if already a member (to give better feedback)
+    const { data: existingMember } = await supabase
+        .from("group_members")
+        .select("id")
+        .eq("group_id", group.id)
+        .eq("user_id", user.id)
+        .single();
+    
+    if (existingMember) {
+        return { error: "You are already a member of this group." };
+    }
+
+    // 3. Join
     const { error: joinError } = await supabase
       .from("group_members")
       .insert([{ group_id: group.id, user_id: user.id }]);
 
-    return { error: joinError };
+    if (joinError) {
+        console.error("[SupabaseService] Join error:", joinError);
+        return { error: "Failed to join group. Please try again." };
+    }
+
+    return { error: null };
   },
 
   async updateGroup(groupId, updates) {
@@ -362,30 +421,47 @@ export const SupabaseService = {
 
     // 2. Sync Assignees if provided
     if (assigneeIds && Array.isArray(assigneeIds)) {
+      console.log(`[SupabaseService] Updating assignees for task ${taskId}`, assigneeIds);
+      
       // Fetch current assignees
       const { data: currentAssignees, error: fetchError } = await supabase
         .from("task_assignees")
         .select("user_id")
         .eq("task_id", taskId);
         
-      if (!fetchError) {
-        const currentIds = (currentAssignees || []).map(a => a.user_id);
-        
-        // Determine to add
-        const toAdd = assigneeIds.filter(id => !currentIds.includes(id));
-        // Determine to remove
-        const toRemove = currentIds.filter(id => !assigneeIds.includes(id));
+      if (fetchError) {
+        console.error("[SupabaseService] Error fetching assignees:", fetchError);
+        return { error: fetchError };
+      }
 
-        if (toAdd.length > 0) {
-           await supabase.from("task_assignees").insert(
-             toAdd.map(uid => ({ task_id: taskId, user_id: uid }))
-           );
-        }
-        if (toRemove.length > 0) {
-           await supabase.from("task_assignees").delete()
-             .eq("task_id", taskId)
-             .in("user_id", toRemove);
-        }
+      const currentIds = (currentAssignees || []).map(a => a.user_id);
+      
+      // Determine to add
+      const toAdd = assigneeIds.filter(id => !currentIds.includes(id));
+      // Determine to remove
+      const toRemove = currentIds.filter(id => !assigneeIds.includes(id));
+
+      console.log(`[SupabaseService] Adding assignees:`, toAdd);
+      console.log(`[SupabaseService] Removing assignees:`, toRemove);
+
+      if (toAdd.length > 0) {
+          const { error: addError } = await supabase.from("task_assignees").insert(
+            toAdd.map(uid => ({ task_id: taskId, user_id: uid }))
+          );
+          if (addError) {
+            console.error("[SupabaseService] Error adding assignees:", addError);
+            return { error: addError };
+          }
+      }
+      
+      if (toRemove.length > 0) {
+          const { error: removeError } = await supabase.from("task_assignees").delete()
+            .eq("task_id", taskId)
+            .in("user_id", toRemove);
+          if (removeError) {
+            console.error("[SupabaseService] Error removing assignees:", removeError);
+            return { error: removeError };
+          }
       }
     }
 
@@ -428,6 +504,11 @@ export const SupabaseService = {
     });
 
     return { data: res, error: null };
+  },
+
+  async deleteTask(taskId) {
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+    return { error };
   },
 
   // helpers: assign/remove users on a task
@@ -528,8 +609,10 @@ export const SupabaseService = {
         .from("groups")
         .select("id, name, icon, color, join_code, created_by, created_at")
         .eq("id", groupId)
-        .single();
+        .maybeSingle();
+      
       if (groupError) return { error: groupError };
+      if (!group) return { error: { message: "Group not found" } };
 
       const { data: members, error: membersError } = await supabase
         .from("group_members")
@@ -560,15 +643,29 @@ export const SupabaseService = {
     if (sessionError || !user) return { data: [], error: sessionError || null };
 
     try {
-      // Select tasks that have task_assignees for the current user
+      // 1. Get IDs of tasks assigned to the user
+      const { data: assignments, error: assignmentError } = await supabase
+        .from("task_assignees")
+        .select("task_id")
+        .eq("user_id", user.id);
+      console.log("[SupabaseService] Assignments:", assignments);
+      if (assignmentError) return { data: [], error: assignmentError };
+      
+      const taskIds = (assignments || []).map(a => a.task_id);
+      
+      if (taskIds.length === 0) {
+        return { data: [], error: null };
+      }
+
+      // 2. Fetch the actual tasks
       const { data, error } = await supabase
         .from("tasks")
         .select(
-          "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url))"
+          "id, title, description, group_id, due_date, is_completed, created_by, assignees:task_assignees(user_id, profiles(id, full_name, avatar_url)), group:groups(name)"
         )
-        .eq("task_assignees.user_id", user.id)
+        .in("id", taskIds)
         .order("due_date", { ascending: true });
-
+      console.log("[SupabaseService] Tasks:", data);
       if (error) return { data: [], error };
 
       // normalize assignees and keep DB boolean is_completed
@@ -577,6 +674,7 @@ export const SupabaseService = {
         title: t.title,
         description: t.description,
         group_id: t.group_id,
+        groupName: t.group?.name,
         due_date: t.due_date,
         is_completed: !!t.is_completed,
         created_by: t.created_by,

@@ -21,6 +21,7 @@ export interface Task {
   title: string;
   description: string;
   group_id: string;
+  groupName?: string;
   due_date: string | null;
   is_completed: boolean;
   created_by: string;

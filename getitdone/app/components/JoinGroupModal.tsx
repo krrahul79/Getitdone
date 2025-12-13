@@ -64,9 +64,10 @@ export default function JoinGroupModal({
     setError(null);
 
     try {
-      const { error } = await SupabaseService.joinGroupByCode(code.trim());
-      if (error) {
-        setError("Invalid code or already a member.");
+      // The service now handles uppercasing and detailed validation
+      const { error: joinError } = await SupabaseService.joinGroupByCode(code);
+      if (joinError) {
+        setError(typeof joinError === "string" ? joinError : "Failed to join group.");
       } else {
         setCode("");
         onJoin();
@@ -82,91 +83,94 @@ export default function JoinGroupModal({
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.keyboardView}
-            >
-              <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
-                <Animated.View 
-                    style={[
-                        styles.modal,
-                        {
-                            transform: [{
-                                translateY: slideAnim.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [600, 0]
-                                })
-                            }]
-                        }
-                    ]}
-                >
-                    <View style={styles.headerRow}>
-                    <Text style={styles.header}>Join Group</Text>
-                    <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                        <Ionicons name="close" size={24} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-                    </View>
-
-                    <Text style={styles.description}>
-                    Enter the invite code shared by the group admin.
-                    </Text>
-
-                    <View style={styles.inputContainer}>
-                    <TextInput
-                        style={[
-                            styles.input,
-                            isFocused && styles.inputFocused,
-                            error && styles.inputError
-                        ]}
-                        value={code}
-                        onChangeText={(text) => {
-                        setCode(text);
-                        setError(null);
-                        }}
-                        placeholder="e.g., A8X-992"
-                        placeholderTextColor={COLORS.textTertiary}
-                        autoCapitalize="characters"
-                        autoCorrect={false}
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => setIsFocused(false)}
-                    />
-                    </View>
-
-                    {error && <Text style={styles.errorText}>{error}</Text>}
-
-                    <TouchableOpacity
-                    style={[styles.joinBtn, loading && { opacity: 0.7 }]}
-                    onPress={handleJoin}
-                    disabled={loading || !code.trim()}
-                    >
-                    {loading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.joinBtnText}>Join Group</Text>
-                    )}
-                    </TouchableOpacity>
-                </Animated.View>
-              </TouchableWithoutFeedback>
-            </KeyboardAvoidingView>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
+      >
+        <View style={styles.overlayContainer}>
+          {/* Background Overlay - Handles closing and dimming */}
+          <TouchableWithoutFeedback onPress={onClose}>
+            <Animated.View 
+              style={[
+                StyleSheet.absoluteFill, 
+                { backgroundColor: "rgba(0,0,0,0.5)", opacity: fadeAnim }
+              ]} 
+            />
           </TouchableWithoutFeedback>
-        </Animated.View>
-      </TouchableWithoutFeedback>
+
+          {/* Modal Content - Sits on top */}
+          <Animated.View 
+              style={[
+                  styles.modal,
+                  {
+                      transform: [{
+                          translateY: slideAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [600, 0]
+                          })
+                      }]
+                  }
+              ]}
+          >
+              <View style={styles.headerRow}>
+              <Text style={styles.header}>Join Group</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                  <Ionicons name="close" size={24} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              </View>
+
+              <Text style={styles.description}>
+              Enter the invite code shared by the group admin.
+              </Text>
+
+              <View style={styles.inputContainer}>
+              <TextInput
+                  style={[
+                      styles.input,
+                      isFocused && styles.inputFocused,
+                      error && styles.inputError
+                  ]}
+                  value={code}
+                  onChangeText={(text) => {
+                  setCode(text);
+                  setError(null);
+                  }}
+                  placeholder="e.g., A8X-992"
+                  placeholderTextColor={COLORS.textTertiary}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+              />
+              </View>
+
+              {error && <Text style={styles.errorText}>{error}</Text>}
+
+              <TouchableOpacity
+              style={[styles.joinBtn, loading && { opacity: 0.7 }]}
+              onPress={handleJoin}
+              disabled={loading || !code.trim()}
+              >
+              {loading ? (
+                  <ActivityIndicator color="#fff" />
+              ) : (
+                  <Text style={styles.joinBtnText}>Join Group</Text>
+              )}
+              </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
   keyboardView: {
-    justifyContent: "flex-end",
     flex: 1,
+  },
+  overlayContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   modal: {
     backgroundColor: "#fff",

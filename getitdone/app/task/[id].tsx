@@ -159,11 +159,17 @@ export default function TaskDetailScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            // TODO: Implement delete in SupabaseService if not exists, for now just logic placeholder
-            // await SupabaseService.deleteTask(task.id);
-            // refreshMyTasks();
-            // router.back();
-            showToast("Info", "Delete functionality is coming soon.", "info");
+            try {
+              const { error } = await SupabaseService.deleteTask(task.id);
+              if (error) throw error;
+              
+              showToast("Success", "Task deleted successfully.", "success");
+              refreshMyTasks(); // Refresh list on home/group screen
+              router.back();
+            } catch (e) {
+              console.error("Delete error:", e);
+              showToast("Error", "Failed to delete task.", "error");
+            }
           },
         },
       ]

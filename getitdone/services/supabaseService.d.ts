@@ -25,6 +25,7 @@ export const SupabaseService: {
   updateTaskDetails(taskId: string, updates: { title?: string; description?: string }, assigneeIds?: string[]): Promise<{ error: any }>;
   updateTaskStatus(taskId: string, isCompleted: boolean): Promise<{ data: any; error: any }>;
   rescheduleTask(taskId: string, newDate: string): Promise<{ data: any; error: any }>;
+  deleteTask(taskId: string): Promise<{ error: any }>;
   assignUsersToTask(taskId: string, userIds: string[]): Promise<{ data: any; error: any }>;
   removeTaskAssignee(taskId: string, userId: string): Promise<{ data: any; error: any }>;
   getMyAssignedTasks(): Promise<{ data: Task[]; error: any }>;

@@ -15,15 +15,10 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { SupabaseService } from "../services/supabaseService";
 import { useProfile } from "./ProfileContext"; // In the same directory
+import { useTasks } from "./TaskContext";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../constants/theme";
 
-interface Task {
-  id: string;
-  title: string;
-  groupName: string;
-  dueDate: string;
-  isComplete: boolean;
-}
+
 
 const { width } = Dimensions.get("window");
 
@@ -51,49 +46,14 @@ function getRelativeDate(dateStr: string) {
 
 export default function HomeScreen() {
   const { profile } = useProfile();
-  const [tasks, setTasks] = useState<Task[]>([]);
+   const { tasks, refreshMyTasks } = useTasks();
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  const fetchUserNameAndTasks = async () => {
-    try {
-      // Fetch user's groups
-      const groupsRes = await SupabaseService.getMyGroups();
-      const firstGroup =
-        groupsRes.data && groupsRes.data.length > 0
-          ? groupsRes.data[0]
-          : null;
-      if (firstGroup) {
-        // Fetch tasks for the first group
-        const fetchedTasks = await SupabaseService.getGroupTasks(
-          firstGroup.id
-        );
-        // Map Supabase fields to local Task type
-        const mappedTasks = (fetchedTasks.data || []).map((task: any) => ({
-          id: task.id,
-          title: task.title,
-          groupName: firstGroup.name,
-          dueDate: task.due_date,
-          isComplete: task.is_completed,
-        }));
-        setTasks(mappedTasks);
-      } else {
-        setTasks([]);
-      }
-    } catch (error) {
-      console.error("Error fetching data from Supabase:", error);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchUserNameAndTasks();
-    }, [])
-  );
-
+  // Tasks are already loaded by Context, but we allow manual refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchUserNameAndTasks();
+    await refreshMyTasks();
     setRefreshing(false);
   };
 
@@ -101,25 +61,20 @@ export default function HomeScreen() {
     try {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
-      const newStatus = !task.isComplete;
+      const newStatus = !task.is_completed;
       
-      // Update local state optimistic
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, isComplete: !t.isComplete } : t
-        )
-      );
-
-      // Update status in Supabase
+      // We rely on Context to update UI after service call or optimistic updates could be handled in Context.
+      // For now, we call service and then refresh to be safe, or just call service if Context subscribes.
+      // Ideally, updateTaskStatus should be wrapped in context or we just refresh.
       await SupabaseService.updateTaskStatus(taskId, newStatus);
+      refreshMyTasks(); 
     } catch (error) {
       console.error("Error updating task completion:", error);
-      // Revert if needed (omitted for brevity, but good practice)
     }
   };
 
-  const incompleteTasks = tasks.filter((t) => !t.isComplete);
-  const completeTasks = tasks.filter((t) => t.isComplete);
+  const incompleteTasks = tasks.filter((t) => !t.is_completed);
+  const completeTasks = tasks.filter((t) => t.is_completed);
 
   return (
     <View style={styles.container}>
@@ -204,9 +159,9 @@ export default function HomeScreen() {
                         onPress={() => handleToggleComplete(task.id)}
                     >
                       <Ionicons
-                        name={task.isComplete ? "checkmark-circle" : "ellipse-outline"}
+                        name={task.is_completed ? "checkmark-circle" : "ellipse-outline"}
                         size={28}
-                        color={task.isComplete ? COLORS.success : COLORS.textTertiary}
+                        color={task.is_completed ? COLORS.success : COLORS.textTertiary}
                       />
                     </Pressable>
                     
@@ -222,14 +177,14 @@ export default function HomeScreen() {
                         <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
                         <View style={styles.taskMetaRow}>
                             <View style={styles.groupBadge}>
-                                <Text style={styles.groupBadgeText}>{task.groupName}</Text>
+                                <Text style={styles.groupBadgeText}>{task.groupName || "Group"}</Text>
                             </View>
-                            {task.dueDate && (
+                            {task.due_date && (
                                 <Text style={[
                                     styles.taskDue,
-                                    getRelativeDate(task.dueDate).includes("Today") && styles.taskDueUrgent
+                                    getRelativeDate(task.due_date).includes("Today") && styles.taskDueUrgent
                                 ]}>
-                                    {getRelativeDate(task.dueDate)}
+                                    {getRelativeDate(task.due_date)}
                                 </Text>
                             )}
                         </View>

@@ -17,12 +17,14 @@ import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constan
 
 // Types
 import { UserProfile } from "../../../services/types";
+import { useTasks } from "../../TaskContext";
 import { useToast } from "../../../context/ToastContext";
 
 export default function EditTaskScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { showToast } = useToast();
+  const { refreshMyTasks } = useTasks();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,6 +111,8 @@ export default function EditTaskScreen() {
         showToast("Error", "Failed to update task.", "error");
       } else {
         showToast("Success", "Task updated successfully.", "success");
+        // Refresh the global "My Tasks" list since assignees might have changed
+        refreshMyTasks(); 
         router.back();
       }
     } catch (e) {
