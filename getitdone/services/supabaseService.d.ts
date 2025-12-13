@@ -33,6 +33,8 @@ export const SupabaseService: {
   // Activity & Notifications
   getActivityFeed(): Promise<{ data: ActivityItem[]; error: any }>;
   registerPushToken(token: string): Promise<{ error: any }>;
+  sendPushNotification(token: string, title: string, body: string, data?: any): Promise<void>;
+  notifyAssignees(assigneeIds: string[], title: string, body: string, data?: any): Promise<void>;
   
   // Profile
   updateProfile(updates: Partial<UserProfile>): Promise<{ data: any; error: any }>;

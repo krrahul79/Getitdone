@@ -374,6 +374,12 @@ export const SupabaseService = {
         .filter(Boolean),
     };
 
+    // Notify assignees (exclude creator)
+    const assigneesToNotify = result.assignees.filter(id => id !== user.id);
+    if (assigneesToNotify.length > 0) {
+        this.notifyAssignees(assigneesToNotify, "New Task Assigned", `You have been assigned to: ${result.title}`, { taskId: result.id });
+    }
+
     return { data: result, error: null };
   },
 
@@ -465,6 +471,9 @@ export const SupabaseService = {
             return { error: removeError };
           }
       }
+
+      // Notify new assignees
+      this.notifyAssignees(toAdd, "New Task Assigned", `You have been assigned to: ${updates.title || "a task"}`, { taskId });
     }
 
     // 3. Return updated task
@@ -533,6 +542,9 @@ export const SupabaseService = {
       .single();
 
     if (requeryError) return { data: null, error: requeryError };
+
+    // Notify users
+    this.notifyAssignees(userIds, "New Task Assigned", "You have been assigned to a task", { taskId });
 
     return {
       data: {
@@ -775,5 +787,54 @@ export const SupabaseService = {
         console.error("Stats error", e);
         return { groupsCount: 0, tasksDone: 0 };
     }
-  }
+  },
+
+  // --- NOTIFICATIONS ---
+
+  async sendPushNotification(expoPushToken, title, body, data = {}) {
+    const message = {
+      to: expoPushToken,
+      sound: 'default',
+      title: title,
+      body: body,
+      data: data,
+    };
+
+    try {
+        await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Accept-encoding': 'gzip, deflate',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(message),
+        });
+    } catch (error) {
+        console.log("Error sending notification:", error);
+    }
+  },
+
+  async notifyAssignees(assigneeIds, title, body, data = {}) {
+      if (!assigneeIds || assigneeIds.length === 0) return;
+
+      try {
+          // Get tokens for these users
+          const { data: tokens, error } = await supabase
+              .from('user_push_tokens')
+              .select('token')
+              .in('user_id', assigneeIds);
+          
+          if (error || !tokens) return;
+
+          // Send to each
+          for (const t of tokens) {
+              if (t.token) {
+                  await this.sendPushNotification(t.token, title, body, data);
+              }
+          }
+      } catch (e) {
+          console.error("Notify error", e);
+      }
+  },
 };

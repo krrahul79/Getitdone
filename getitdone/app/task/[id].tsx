@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
   TouchableOpacity,
+  SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -197,7 +198,7 @@ export default function TaskDetailScreen() {
   }
 
   return (
-    <View style={styles.fullScreen}>
+    <SafeAreaView style={styles.fullScreen}>
       {/* Header */}
       <View style={styles.headerRow}>
         <Pressable onPress={() => router.back()} style={styles.headerIconBtn}>
@@ -396,7 +397,7 @@ export default function TaskDetailScreen() {
       </ScrollView>
 
 
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -457,7 +458,7 @@ function AssigneeItem({
 const styles = StyleSheet.create({
   fullScreen: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: COLORS.background,
   },
   centered: {
     flex: 1,

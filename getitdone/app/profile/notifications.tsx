@@ -75,6 +75,13 @@ export default function NotificationsScreen() {
     
     // Get the token
     try {
+      if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
+          console.log('Skipping push token registration in Expo Go Android');
+          // Don't error, just return or set a "fake" state if needed
+          Alert.alert("Development Build Required", "Push notifications on Android require a Development Build in Expo SDK 53+. Please refer to the guide.");
+          return;
+      }
+
       const projectId =
         Constants?.expoConfig?.extra?.eas?.projectId ||
         Constants?.easConfig?.projectId;
@@ -87,8 +94,13 @@ export default function NotificationsScreen() {
 
       // Save to Supabase
       await SupabaseService.registerPushToken(token);
-    } catch (e) {
-      console.error("Error getting push token:", e);
+    } catch (e: any) {
+        // Fallback for the specific error string if appOwnership doesn't catch it
+        if (e.message && e.message.includes("functionality provided by expo-notifications was removed")) {
+             Alert.alert("Development Build Required", "Push notifications require a Development Build. See guide.");
+        } else {
+             console.error("Error getting push token:", e);
+        }
     }
   };
 
