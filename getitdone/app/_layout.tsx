@@ -1,26 +1,33 @@
 import { Stack } from "expo-router";
-import { SafeAreaView, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { ProfileProvider } from "./ProfileContext";
 import { GroupsProvider } from "./GroupsContext";
 import { TaskProvider } from "./TaskContext";
+import { ToastProvider } from "../context/ToastContext";
+
+import { StatusBar } from "expo-status-bar";
+import { COLORS } from "../constants/theme";
 
 export default function RootLayout() {
   return (
-    <ProfileProvider>
-      <GroupsProvider>
-        <TaskProvider>
-          <SafeAreaView style={styles.safeArea}>
-            <Stack screenOptions={{ headerShown: false }} />
-          </SafeAreaView>
-        </TaskProvider>
-      </GroupsProvider>
-    </ProfileProvider>
+    <ToastProvider>
+      <ProfileProvider>
+        <GroupsProvider>
+          <TaskProvider>
+            <View style={styles.container}>
+              <StatusBar style="dark" backgroundColor="transparent" translucent />
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.background } }} />
+            </View>
+          </TaskProvider>
+        </GroupsProvider>
+      </ProfileProvider>
+    </ToastProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: "#f3f4f6", // match your app background
+    backgroundColor: COLORS.background,
   },
 });

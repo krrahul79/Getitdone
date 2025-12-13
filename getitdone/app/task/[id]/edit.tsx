@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,176 +6,356 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
+  Alert,
+  Image,
 } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { SupabaseService } from "../../../services/supabaseService";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
-// Mock data for demo; in a real app, fetch by id
-const MOCK_TASKS = [
-  {
-    id: 1,
-    title: "Buy groceries",
-    description:
-      "Get milk, eggs, bread, and coffee. Also check if we need laundry detergent.",
-    groupName: "Household",
-    dueDate: "2025-11-03",
-    isComplete: false,
-    assignedTo: [
-      { id: "user123", name: "Alex" },
-      { id: "user456", name: "Jane" },
-    ],
-    createdBy: "Jane",
-  },
-  // ...add more tasks as needed
-];
-
-const isEditMode = true; // Always in edit mode for this demo
-const task = MOCK_TASKS[0]; // For demo, just use the first task
+// Types
+import { UserProfile } from "../../../services/types";
+import { useTasks } from "../../TaskContext";
+import { useToast } from "../../../context/ToastContext";
 
 export default function EditTaskScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams();
+  const { showToast } = useToast();
+  const { refreshMyTasks } = useTasks();
 
-  const [title, setTitle] = useState(task?.title ?? "");
-  const [description, setDescription] = useState(task?.description ?? "");
-  const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
-  const [groupName, setGroupName] = useState(task?.groupName ?? "");
-  // For demo, just show names
-  const [assignedTo, setAssignedTo] = useState(
-    task?.assignedTo.map((u) => u.name).join(", ") ?? ""
-  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  // Form State
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  
+  // Data State
+  const [groupMembers, setGroupMembers] = useState<UserProfile[]>([]);
+  const [groupName, setGroupName] = useState("");
 
-  const handleSave = () => {
-    // TODO: Save changes to backend
-    alert("Task updated!");
-    router.back();
+  useEffect(() => {
+    if (id) {
+      loadData();
+    }
+  }, [id]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch Task Details
+      const { data: task, error: taskError } = await SupabaseService.getTask(
+        id as string
+      );
+      
+      if (taskError || !task) {
+        console.error("Error fetching task:", taskError);
+        showToast("Error", "Failed to load task details.", "error");
+        return;
+      }
+
+      setTitle(task.title);
+      setDescription(task.description);
+      setAssigneeIds(task.assignees || []);
+      setGroupName(task.groupName || "");
+
+      // 2. Fetch Group Members (using group_id from task)
+      if (task.group_id) {
+        const { data: groupData, error: groupError } = 
+          await SupabaseService.getGroupWithMembers(task.group_id);
+          
+        if (groupError) {
+          console.error("Error fetching members:", groupError);
+        } else if (groupData && groupData.members) {
+           setGroupMembers(groupData.members);
+        }
+      }
+
+    } catch (e) {
+      console.error("Exception loading edit data:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const handleToggleAssignee = (userId: string) => {
+    setAssigneeIds((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      showToast("Validation", "Title is required.", "error");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await SupabaseService.updateTaskDetails(
+        id as string,
+        { title, description },
+        assigneeIds
+      );
+
+      if (error) {
+        console.error("Update Error:", error);
+        showToast("Error", "Failed to update task.", "error");
+      } else {
+        showToast("Success", "Task updated successfully.", "success");
+        // Refresh the global "My Tasks" list since assignees might have changed
+        refreshMyTasks(); 
+        router.back();
+      }
+    } catch (e) {
+      console.error("Exception saving task:", e);
+      showToast("Error", "An unexpected error occurred.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{ paddingBottom: 32 }}
-    >
-      <View style={styles.headerRow}>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+          <FontAwesome name="times" size={24} color={COLORS.textSecondary} />
+        </Pressable>
         <Text style={styles.headerTitle}>Edit Task</Text>
-        <Pressable onPress={() => router.back()}>
-          <FontAwesome name="times" size={24} color="#6b7280" />
+        <Pressable 
+          onPress={handleSave} 
+          disabled={saving}
+          style={[styles.headerBtn, saving && { opacity: 0.5 }]}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+             <Text style={styles.saveText}>Save</Text>
+          )}
         </Pressable>
       </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Title</Text>
-        <TextInput
-          style={styles.input}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Task title"
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={[styles.input, { height: 80 }]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Task description"
-          multiline
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Due Date</Text>
-        <TextInput
-          style={styles.input}
-          value={dueDate}
-          onChangeText={setDueDate}
-          placeholder="YYYY-MM-DD"
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Group</Text>
-        <TextInput
-          style={styles.input}
-          value={groupName}
-          onChangeText={setGroupName}
-          placeholder="Group name"
-        />
-      </View>
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Assigned To</Text>
-        <TextInput
-          style={styles.input}
-          value={assignedTo}
-          onChangeText={setAssignedTo}
-          placeholder="Assignee names (comma separated)"
-        />
-      </View>
-      <Pressable style={styles.saveBtn} onPress={handleSave}>
-        <Text style={styles.saveBtnText}>Save Changes</Text>
-      </Pressable>
-    </ScrollView>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        
+        {/* Title Input */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Task Title</Text>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="What needs to be done?"
+            placeholderTextColor={COLORS.textTertiary}
+          />
+        </View>
+
+        {/* Description Input */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Add details..."
+            placeholderTextColor={COLORS.textTertiary}
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+
+        {/* Group Info (Read Only) */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Group</Text>
+          <View style={styles.readOnlyField}>
+            <FontAwesome name="group" size={16} color={COLORS.textSecondary} style={{marginRight: 8}}/>
+            <Text style={styles.readOnlyText}>{groupName || "Loading..."}</Text>
+          </View>
+        </View>
+
+        {/* Assignees Section */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Assigned To</Text>
+          <View style={styles.membersList}>
+            {groupMembers.map((member) => {
+              const isSelected = assigneeIds.includes(member.id);
+              return (
+                <Pressable
+                  key={member.id}
+                  style={[
+                    styles.memberRow,
+                    isSelected && styles.memberRowSelected
+                  ]}
+                  onPress={() => handleToggleAssignee(member.id)}
+                >
+                  <View style={styles.memberInfo}>
+                    {member.avatar_url ? (
+                      <Image source={{ uri: member.avatar_url }} style={styles.avatar} />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                         <Text style={styles.avatarText}>{member.full_name?.[0]}</Text>
+                      </View>
+                    )}
+                    <Text style={[
+                      styles.memberName,
+                      isSelected && styles.memberNameSelected
+                    ]}>
+                      {member.full_name}
+                    </Text>
+                  </View>
+                  
+                  {isSelected && (
+                    <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
-    padding: 24,
+    backgroundColor: "#fff", // Full white background for clean edit screen
   },
-  headerRow: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 16, // SafeArea buffer
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: "#fff",
+  },
+  headerBtn: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+  },
+  saveText: {
+    fontSize: 16,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+  },
+  content: {
+    padding: 24,
+    paddingBottom: 40,
+  },
+  formGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 14,
+    fontFamily: FONTS.bold,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  input: {
+    fontSize: 16,
+    fontFamily: FONTS.regular,
+    color: COLORS.text,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: BORDER_RADIUS.m,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  textArea: {
+    minHeight: 120,
+  },
+  readOnlyField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.inputBg,
+    borderRadius: BORDER_RADIUS.m,
+    padding: 16,
+    opacity: 0.7,
+  },
+  readOnlyText: {
+    fontSize: 16,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+  },
+  membersList: {
+    backgroundColor: COLORS.inputBg,
+    borderRadius: BORDER_RADIUS.m,
+    overflow: "hidden",
+  },
+  memberRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1f2937",
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 15,
-    color: "#6b7280",
-    fontWeight: "500",
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    color: "#1f2937",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  saveBtn: {
-    backgroundColor: "#2563eb",
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  closeBtn: {
-    marginTop: 24,
     padding: 12,
-    backgroundColor: "#e5e7eb",
-    borderRadius: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "#fff",
   },
-  centered: {
-    flex: 1,
+  memberRowSelected: {
+    backgroundColor: "#e0e7ff", // Light indigo
+  },
+  memberInfo: {
+    flexDirection: "row",
     alignItems: "center",
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+  },
+  avatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ccc",
     justifyContent: "center",
-    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  memberName: {
+    fontSize: 16,
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
+  },
+  memberNameSelected: {
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
   },
 });

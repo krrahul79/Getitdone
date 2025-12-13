@@ -1,177 +1,263 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Switch,
-  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+  Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { SupabaseService } from "../../services/supabaseService";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
-function SectionHeader({ title }: { title: string }) {
-  return <Text style={styles.sectionHeader}>{title}</Text>;
-}
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
-function ToggleItem({
-  label,
-  description,
-  value,
-  onValueChange,
-  disabled = false,
-}: {
-  label: string;
-  description: string;
-  value: boolean;
-  onValueChange: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <View style={[styles.toggleItem, disabled && { opacity: 0.5 }]}>
-      <View style={{ flex: 1, marginRight: 12 }}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        <Text style={styles.toggleDesc}>{description}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        disabled={disabled}
-        trackColor={{ false: "#ccc", true: "#3b82f6" }}
-        thumbColor={value ? "#fff" : "#fff"}
-      />
-    </View>
-  );
-}
-
-export default function NotificationSettingsScreen() {
+export default function NotificationsScreen() {
   const router = useRouter();
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [inAppEnabled, setInAppEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [notifyNewTask, setNotifyNewTask] = useState(true);
-  const [notifyTaskCompleted, setNotifyTaskCompleted] = useState(true);
-  const [notifyRescheduled, setNotifyRescheduled] = useState(true);
-  const [notifyDueDate, setNotifyDueDate] = useState(true);
+  const [notifyTaskComplete, setNotifyTaskComplete] = useState(true);
+  const [notifyGroupJoin, setNotifyGroupJoin] = useState(true);
 
-  const handleClose = () => router.back();
+  useEffect(() => {
+    checkPermission();
+  }, []);
+
+  const checkPermission = async () => {
+    const { status } = await Notifications.getPermissionsAsync();
+    setPushEnabled(status === "granted");
+  };
+
+  const registerForPushNotificationsAsync = async () => {
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+      });
+    }
+
+    if (!Device.isDevice) {
+      Alert.alert("Error", "Must use physical device for Push Notifications");
+      return;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      Alert.alert("Permission required", "Please enable notifications in settings.");
+      setPushEnabled(false);
+      return;
+    }
+
+    setPushEnabled(true);
+    
+    // Get the token
+    try {
+      if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
+          console.log('Skipping push token registration in Expo Go Android');
+          // Don't error, just return or set a "fake" state if needed
+          Alert.alert("Development Build Required", "Push notifications on Android require a Development Build in Expo SDK 53+. Please refer to the guide.");
+          return;
+      }
+
+      const projectId =
+        Constants?.expoConfig?.extra?.eas?.projectId ||
+        Constants?.easConfig?.projectId;
+        
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+      const token = tokenData.data;
+      console.log("Push Token:", token);
+
+      // Save to Supabase
+      await SupabaseService.registerPushToken(token);
+    } catch (e: any) {
+        // Fallback for the specific error string if appOwnership doesn't catch it
+        if (e.message && e.message.includes("functionality provided by expo-notifications was removed")) {
+             Alert.alert("Development Build Required", "Push notifications require a Development Build. See guide.");
+        } else {
+             console.error("Error getting push token:", e);
+        }
+    }
+  };
+
+  const togglePush = (value: boolean) => {
+    if (value) {
+      registerForPushNotificationsAsync();
+    } else {
+      // Ideally we would unregister or delete token, but for now just toggle state
+      setPushEnabled(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
-          <Ionicons name="chevron-back" size={26} color="#6b7280" />
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notification Settings</Text>
-        <View style={{ width: 32 }} />
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={{ width: 40 }} />
       </View>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: 32 }}
-      >
-        <SectionHeader title="Push Notifications" />
-        <View style={styles.sectionCard}>
-          <ToggleItem
-            label="Allow Push Notifications"
-            description="Receive alerts when the app is closed."
-            value={pushEnabled}
-            onValueChange={() => setPushEnabled(!pushEnabled)}
-          />
+
+      <View style={styles.content}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>General</Text>
+          
+          <View style={styles.row}>
+            <View style={styles.rowInfo}>
+              <Text style={styles.rowTitle}>Allow Push Notifications</Text>
+              <Text style={styles.rowSubtitle}>Receive updates on your device</Text>
+            </View>
+            <Switch
+              value={pushEnabled}
+              onValueChange={togglePush}
+              trackColor={{ false: COLORS.inputBg, true: COLORS.primary }}
+              thumbColor={"#fff"}
+            />
+          </View>
         </View>
-        <SectionHeader title="In-App Activity" />
-        <View style={styles.sectionCard}>
-          <ToggleItem
-            label="Show In-App Banners"
-            description="Show alerts at the top of the app."
-            value={inAppEnabled}
-            onValueChange={() => setInAppEnabled(!inAppEnabled)}
-          />
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <Text style={styles.sectionSubtitle}>Customize what you want to be notified about</Text>
+
+          <View style={styles.row}>
+            <View style={styles.rowInfo}>
+              <Text style={styles.rowTitle}>New Tasks</Text>
+              <Text style={styles.rowSubtitle}>When a task is assigned to you</Text>
+            </View>
+            <Switch
+              value={notifyNewTask}
+              onValueChange={setNotifyNewTask}
+              disabled={!pushEnabled}
+              trackColor={{ false: COLORS.inputBg, true: COLORS.primary }}
+              thumbColor={"#fff"}
+            />
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.rowInfo}>
+              <Text style={styles.rowTitle}>Task Completion</Text>
+              <Text style={styles.rowSubtitle}>When a task in your group is done</Text>
+            </View>
+            <Switch
+              value={notifyTaskComplete}
+              onValueChange={setNotifyTaskComplete}
+              disabled={!pushEnabled}
+              trackColor={{ false: COLORS.inputBg, true: COLORS.primary }}
+              thumbColor={"#fff"}
+            />
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.rowInfo}>
+              <Text style={styles.rowTitle}>Group Updates</Text>
+              <Text style={styles.rowSubtitle}>New members or group changes</Text>
+            </View>
+            <Switch
+              value={notifyGroupJoin}
+              onValueChange={setNotifyGroupJoin}
+              disabled={!pushEnabled}
+              trackColor={{ false: COLORS.inputBg, true: COLORS.primary }}
+              thumbColor={"#fff"}
+            />
+          </View>
         </View>
-        <SectionHeader title="Notify me about..." />
-        <View style={styles.sectionCard}>
-          <ToggleItem
-            label="New Task Assigned"
-            description="When a member assigns a new task to you."
-            value={notifyNewTask}
-            onValueChange={() => setNotifyNewTask(!notifyNewTask)}
-            disabled={!pushEnabled && !inAppEnabled}
-          />
-          <ToggleItem
-            label="Task Completed"
-            description="When a task you assigned is completed."
-            value={notifyTaskCompleted}
-            onValueChange={() => setNotifyTaskCompleted(!notifyTaskCompleted)}
-            disabled={!pushEnabled && !inAppEnabled}
-          />
-          <ToggleItem
-            label="Task Rescheduled"
-            description="When a task's due date is changed."
-            value={notifyRescheduled}
-            onValueChange={() => setNotifyRescheduled(!notifyRescheduled)}
-            disabled={!pushEnabled && !inAppEnabled}
-          />
-          <ToggleItem
-            label="Due Date Reminders"
-            description="24 hours before a task is due."
-            value={notifyDueDate}
-            onValueChange={() => setNotifyDueDate(!notifyDueDate)}
-            disabled={!pushEnabled && !inAppEnabled}
-          />
-        </View>
-      </ScrollView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f3f4f6" },
-  headerRow: {
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 12,
-    backgroundColor: "#fff",
+    paddingHorizontal: SPACING.l,
+    paddingVertical: SPACING.m,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  headerBtn: { width: 32, alignItems: "center" },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
-    flex: 1,
-    textAlign: "center",
-  },
-  scroll: { flex: 1 },
-  sectionHeader: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "600",
-    marginTop: 18,
-    marginBottom: 8,
-    textTransform: "uppercase",
-    paddingHorizontal: 20,
-  },
-  sectionCard: {
-    borderRadius: 16,
+    borderBottomColor: COLORS.border,
     backgroundColor: "#fff",
-    marginBottom: 8,
-    marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-    overflow: "hidden",
   },
-  toggleItem: {
+  backBtn: {
+    padding: SPACING.xs,
+  },
+  headerTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.text,
+  },
+  content: {
+    padding: SPACING.l,
+  },
+  section: {
+    marginBottom: SPACING.xl,
+  },
+  sectionTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.primary,
+    marginBottom: SPACING.xs,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  sectionSubtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.m,
+  },
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    padding: SPACING.m,
+    borderRadius: BORDER_RADIUS.m,
+    marginBottom: SPACING.s,
+    ...SHADOWS.small,
   },
-  toggleLabel: { fontSize: 17, color: "#1f2937", fontWeight: "600" },
-  toggleDesc: { fontSize: 13, color: "#6b7280", marginTop: 2 },
+  rowInfo: {
+    flex: 1,
+    paddingRight: SPACING.m,
+  },
+  rowTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  rowSubtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
 });

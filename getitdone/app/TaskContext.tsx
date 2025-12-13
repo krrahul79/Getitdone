@@ -2,16 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { SupabaseService } from "../services/supabaseService";
 import { useProfile } from "./ProfileContext";
 
-export type Task = {
-  id: string | number;
-  title: string;
-  description?: string | null;
-  group_id?: string | null;
-  due_date?: string | null;
-  is_completed?: boolean; // DB boolean column
-  created_by?: string | null;
-  assignees?: string[];
-};
+import type { Task } from "../services/types";
+export type { Task };
 
 const TaskContext = createContext<{
   tasks: Task[];
@@ -52,7 +44,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         setTasks([]);
         return;
       }
-      setTasks(data || []);
+      setTasks((data as Task[]) || []);
     } catch (e) {
       console.error("[TaskProvider] Exception loading tasks:", e);
       setTasks([]);

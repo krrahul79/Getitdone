@@ -7,8 +7,12 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
+  Dimensions,
 } from "react-native";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+
+const { width } = Dimensions.get("window");
 
 export default function LeaveGroupModal({
   visible,
@@ -34,8 +38,8 @@ export default function LeaveGroupModal({
         }),
         Animated.timing(scaleAnim, {
           toValue: 1,
-          duration: 200,
-          easing: Easing.out(Easing.ease),
+          duration: 250,
+          easing: Easing.out(Easing.back(1.5)), // nice pop effect
           useNativeDriver: true,
         }),
       ]).start();
@@ -46,31 +50,33 @@ export default function LeaveGroupModal({
   }, [visible]);
 
   return (
-    <Modal visible={visible} animationType="none" transparent>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <View style={styles.centered}>
           <Animated.View
             style={[styles.modal, { transform: [{ scale: scaleAnim }] }]}
           >
-            <View style={styles.iconCircle}>
-              <FontAwesome5
-                name="exclamation-triangle"
-                size={32}
-                color="#dc2626"
-              />
-            </View>
+             <View style={styles.headerIcon}>
+                <View style={styles.iconCircle}>
+                  <Ionicons
+                    name="log-out-outline"
+                    size={32}
+                    color={COLORS.error}
+                  />
+                </View>
+             </View>
+            
             <Text style={styles.header}>Leave Group?</Text>
             <Text style={styles.bodyText}>
-              Are you sure you want to leave the{" "}
-              <Text style={styles.bold}>{groupName}</Text> group? You will be
-              removed from all tasks.
+              Are you sure you want to leave <Text style={styles.bold}>{groupName}</Text>? You won't be able to access tasks until you join again.
             </Text>
-            <View style={styles.buttonCol}>
-              <TouchableOpacity style={styles.leaveBtn} onPress={onLeave}>
-                <Text style={styles.leaveBtnText}>Leave</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            
+            <View style={styles.buttonRow}>
+               <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.leaveBtn} onPress={onLeave}>
+                <Text style={styles.leaveBtnText}>Leave Group</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -83,85 +89,84 @@ export default function LeaveGroupModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     width: "100%",
+    paddingHorizontal: SPACING.l,
   },
   modal: {
     width: "100%",
-    maxWidth: 380,
+    maxWidth: 340,
     backgroundColor: "#fff",
-    borderRadius: 22,
-    padding: 28,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
+    ...SHADOWS.large,
+  },
+  headerIcon: {
+      marginBottom: SPACING.m,
   },
   iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#fee2e2",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: "rgba(239, 68, 68, 0.1)", // Light red
+      alignItems: "center",
+      justifyContent: "center",
   },
   header: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1f2937",
-    marginBottom: 8,
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: COLORS.text,
+    marginBottom: SPACING.s,
     textAlign: "center",
   },
   bodyText: {
-    color: "#52525b",
-    fontSize: 16,
-    marginBottom: 24,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    fontSize: 15,
+    marginBottom: SPACING.l,
     textAlign: "center",
+    lineHeight: 22,
   },
   bold: {
-    fontWeight: "700",
-    color: "#1f2937",
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
-  buttonCol: {
+  buttonRow: {
     width: "100%",
-    flexDirection: "column",
-    gap: 12,
+    flexDirection: "row",
+    gap: SPACING.m,
   },
   leaveBtn: {
-    backgroundColor: "#dc2626",
-    borderRadius: 14,
-    paddingVertical: 14,
+    flex: 1,
+    backgroundColor: COLORS.error,
+    borderRadius: BORDER_RADIUS.m,
+    paddingVertical: 12,
     alignItems: "center",
-    marginBottom: 8,
-    shadowColor: "#dc2626",
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 2,
+    ...SHADOWS.small,
   },
   leaveBtnText: {
     color: "#fff",
-    fontWeight: "700",
-    fontSize: 18,
+    fontFamily: FONTS.bold,
+    fontSize: 15,
   },
   cancelBtn: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 14,
-    paddingVertical: 14,
+    flex: 1,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: BORDER_RADIUS.m,
+    paddingVertical: 12,
     alignItems: "center",
   },
   cancelBtnText: {
-    color: "#1f2937",
-    fontWeight: "700",
-    fontSize: 18,
+    color: COLORS.text,
+    fontFamily: FONTS.bold,
+    fontSize: 15,
   },
 });

@@ -1,254 +1,374 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ScrollView,
+  SafeAreaView,
+  Alert,
+  Modal,
 } from "react-native";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import LogoutModal from "../profile/logout-modal";
+import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { SupabaseService } from "../../services/supabaseService";
 import { useProfile } from "../ProfileContext";
+import { useToast } from "../../context/ToastContext";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
+import { Image } from "react-native";
 
-function Header() {
-  return (
-    <View style={styles.header}>
-      <Text style={styles.headerTitle}>Profile</Text>
-    </View>
-  );
-}
-
-function ProfileHeader() {
-  const { profile } = useProfile();
-  return (
-    <View style={styles.profileHeader}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{profile?.full_name?.[0] || "?"}</Text>
-      </View>
-      <Text style={styles.profileName}>{profile?.full_name || ""}</Text>
-      <Text style={styles.profileEmail}>{profile?.email || ""}</Text>
-    </View>
-  );
-}
-
-function SettingsItem({
-  icon,
-  iconBg,
-  text,
-  onPress,
-}: {
-  icon: string;
-  iconBg: any;
-  text: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={styles.settingsItem} onPress={onPress}>
-      <View style={[styles.settingsIcon, iconBg]}>
-        <FontAwesome5 name={icon} size={20} color="#fff" />
-      </View>
-      <Text style={styles.settingsText}>{text}</Text>
-      <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-    </TouchableOpacity>
-  );
-}
-
-function SectionHeader({ title }: { title: string }) {
-  return <Text style={styles.sectionHeader}>{title}</Text>;
-}
-
-export default function ProfileTabScreen() {
+export default function ProfileScreen() {
   const router = useRouter();
-  const [showLogoutModal, setShowLogoutModal] = React.useState(false);
-  const handleEditProfile = () => router.push("/profile/edit");
-  const handleNotifications = () => router.push("/profile/notifications");
-  const handleHelp = () => router.push("/profile/help");
-  const handleLogout = () => setShowLogoutModal(true);
+  const { profile, setProfile } = useProfile();
+  const { showToast } = useToast();
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [stats, setStats] = useState({ tasksDone: 0, groupsCount: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+        loadStats();
+    }, [])
+  );
+
+  const loadStats = async () => {
+      const data = await SupabaseService.getProfileStats();
+      setStats(data);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await SupabaseService.signOut();
+      setProfile(null);
+      setLogoutModalVisible(false);
+      router.replace("/login");
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
+
+  const menuItems = [
+    {
+      icon: "person-outline",
+      label: "Edit Profile",
+      onPress: () => router.push("/profile/edit"),
+      color: COLORS.primary,
+    },
+    {
+      icon: "notifications-outline",
+      label: "Notifications",
+      onPress: () => router.push("/profile/notifications"),
+      color: COLORS.secondary,
+    },
+    {
+      icon: "help-circle-outline",
+      label: "Help & Support",
+      onPress: () => showToast("Support", "Contact us at support@fairshare.com", "info"),
+      color: COLORS.warning,
+    },
+    {
+      icon: "log-out-outline",
+      label: "Log Out",
+      onPress: () => setLogoutModalVisible(true),
+      color: COLORS.error,
+      isDestructive: true,
+    },
+  ];
 
   return (
     <View style={styles.container}>
-      <Header />
-      <ProfileHeader />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
-        <SectionHeader title="Account" />
-        <View style={styles.sectionCard}>
-          <SettingsItem
-            icon="user-edit"
-            iconBg={styles.bgBlue}
-            text="Edit Profile"
-            onPress={handleEditProfile}
-          />
-        </View>
-        <SectionHeader title="Settings" />
-        <View style={styles.sectionCard}>
-          <SettingsItem
-            icon="bell"
-            iconBg={styles.bgPurple}
-            text="Notifications"
-            onPress={handleNotifications}
-          />
-        </View>
-        <SectionHeader title="Support" />
-        <View style={styles.sectionCard}>
-          <SettingsItem
-            icon="question-circle"
-            iconBg={styles.bgGreen}
-            text="Help & Feedback"
-            onPress={handleHelp}
-          />
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-      {/* Bottom NavBar visual only, actual navigation handled by tabs */}
-      <View style={styles.bottomNavBar}>
-        <View style={styles.navBtn}>
-          <Ionicons name="home" size={24} color="#6b7280" />
-          <Text style={styles.navLabel}>Home</Text>
-        </View>
-        <View style={styles.navBtn}>
-          <Ionicons name="people" size={24} color="#6b7280" />
-          <Text style={styles.navLabel}>Groups</Text>
-        </View>
-        <View style={styles.navBtn}>
-          <Ionicons name="pie-chart" size={24} color="#6b7280" />
-          <Text style={styles.navLabel}>Activity</Text>
-        </View>
-        <View style={styles.navBtnActive}>
-          <Ionicons name="person" size={24} color="#2563eb" />
-          <Text style={styles.navLabelActive}>Profile</Text>
-        </View>
-      </View>
-      <LogoutModal
-        visible={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.primaryDark]}
+        style={styles.headerBackground}
       />
+      
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.profileCard}>
+            <View style={styles.avatarContainer}>
+              {profile?.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>
+                    {profile?.full_name?.[0] || "?"}
+                </Text>
+              )}
+            </View>
+            <Text style={styles.name}>{profile?.full_name || "User"}</Text>
+            <Text style={styles.email}>{profile?.email || "user@example.com"}</Text>
+            
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{stats.tasksDone}</Text>
+                <Text style={styles.statLabel}>Tasks Done</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{stats.groupsCount}</Text>
+                <Text style={styles.statLabel}>Groups</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.menuSection}>
+            {menuItems.map((item, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.menuItem}
+                onPress={item.onPress}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconBox, { backgroundColor: item.color + "15" }]}>
+                  <Ionicons name={item.icon as any} size={22} color={item.color} />
+                </View>
+                <Text style={[
+                  styles.menuLabel,
+                  item.isDestructive && styles.destructiveLabel
+                ]}>
+                  {item.label}
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <Text style={styles.versionText}>Version 1.0.0</Text>
+        </ScrollView>
+      </SafeAreaView>
+
+      <Modal
+        visible={logoutModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoutModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Log Out</Text>
+            <Text style={styles.modalText}>
+              Are you sure you want to log out?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => setLogoutModalVisible(false)}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalButtonConfirm}
+                onPress={handleLogout}
+              >
+                <Text style={styles.modalButtonConfirmText}>Log Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f3f4f6" },
-  header: {
-    backgroundColor: "#fff",
-    padding: 20,
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  headerTitle: { fontSize: 24, fontWeight: "700", color: "#1f2937" },
-  profileHeader: {
-    flexDirection: "column",
-    alignItems: "center",
-    padding: 32,
-    backgroundColor: "#fff",
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    marginBottom: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#dbeafe",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  avatarText: { color: "#2563eb", fontWeight: "700", fontSize: 40 },
-  profileName: { fontSize: 28, fontWeight: "800", color: "#1f2937" },
-  profileEmail: { fontSize: 18, color: "#6b7280", marginTop: 4 },
-  scroll: { flex: 1, paddingHorizontal: 20 },
-  sectionHeader: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "600",
-    marginTop: 18,
-    marginBottom: 8,
-    textTransform: "uppercase",
-  },
-  sectionCard: {
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-    overflow: "hidden",
-  },
-  settingsItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  settingsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  settingsText: { fontSize: 17, color: "#1f2937", fontWeight: "600", flex: 1 },
-  bgBlue: { backgroundColor: "#2563eb" },
-  bgPurple: { backgroundColor: "#a78bfa" },
-  bgGreen: { backgroundColor: "#22c55e" },
-  logoutBtn: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    marginTop: 24,
-    padding: 16,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  logoutText: { color: "#ef4444", fontSize: 18, fontWeight: "600" },
-  bottomNavBar: {
+  headerBackground: {
     position: "absolute",
+    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    height: 80,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 50,
+    height: 250,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  navBtn: { flex: 1, alignItems: "center" },
-  navBtnActive: { flex: 1, alignItems: "center" },
-  navLabel: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  navLabelActive: {
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.m,
+    paddingBottom: SPACING.l,
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: "#fff",
+  },
+  scrollContent: {
+    paddingHorizontal: SPACING.l,
+    paddingBottom: 100,
+  },
+  profileCard: {
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    alignItems: "center",
+    marginTop: SPACING.m,
+    ...SHADOWS.medium,
+  },
+  avatarContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.inputBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.m,
+    borderWidth: 4,
+    borderColor: "#fff",
+    ...SHADOWS.small,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarText: {
+    fontFamily: FONTS.extraBold,
+    fontSize: 40,
+    color: COLORS.primary,
+  },
+  name: {
+    fontFamily: FONTS.bold,
+    fontSize: 24,
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  email: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.l,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    paddingTop: SPACING.l,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: COLORS.text,
+  },
+  statLabel: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
-    color: "#2563eb",
-    fontWeight: "700",
+    color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: COLORS.border,
+  },
+  menuSection: {
+    marginTop: SPACING.xl,
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.l,
+    padding: SPACING.m,
+    ...SHADOWS.small,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: SPACING.m,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.inputBg,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: SPACING.m,
+  },
+  menuLabel: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  destructiveLabel: {
+    color: COLORS.error,
+  },
+  versionText: {
+    textAlign: "center",
+    marginTop: SPACING.xl,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textTertiary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: SPACING.xl,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.l,
+    padding: SPACING.xl,
+    width: "100%",
+    alignItems: "center",
+    ...SHADOWS.large,
+  },
+  modalTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: COLORS.text,
+    marginBottom: SPACING.s,
+  },
+  modalText: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginBottom: SPACING.xl,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: SPACING.m,
+    width: "100%",
+  },
+  modalButtonCancel: {
+    flex: 1,
+    paddingVertical: SPACING.m,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: COLORS.inputBg,
+    alignItems: "center",
+  },
+  modalButtonCancelText: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  modalButtonConfirm: {
+    flex: 1,
+    paddingVertical: SPACING.m,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: COLORS.error,
+    alignItems: "center",
+  },
+  modalButtonConfirmText: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: "#fff",
   },
 });

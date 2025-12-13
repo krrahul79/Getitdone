@@ -2,464 +2,526 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
-  Pressable,
   StyleSheet,
+  TextInput,
+  TouchableOpacity,
   ScrollView,
-  I18nManager,
-  KeyboardAvoidingView,
+  SafeAreaView,
   Platform,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  useGroups,
-  Group as GroupType,
-  Member as MemberType,
-} from "../GroupsContext";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { SupabaseService } from "../../services/supabaseService";
+import { useGroups } from "../GroupsContext";
+import { useProfile } from "../ProfileContext";
+import { useToast } from "../../context/ToastContext";
+import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
 export default function AddEditTaskScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
-  const isEditMode = Boolean(id);
+  const params = useLocalSearchParams();
+  const { groups, getMembersForGroup } = useGroups();
+  const { profile } = useProfile();
+  const { showToast } = useToast();
 
-  // Prefill for edit mode
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const { groups, getMembersForGroup } = useGroups();
-  const [selectedGroup, setSelectedGroup] = useState<string>("");
-  const [assignedMembers, setAssignedMembers] = useState<string[]>([]);
-  const [dueDate, setDueDate] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [dateValue, setDateValue] = useState<Date | null>(null);
-  const [availableMembers, setAvailableMembers] = useState<
-    { id: string; name: string }[]
-  >([]);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [assignees, setAssignees] = useState<string[]>([]);
+  const [groupMembers, setGroupMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [membersLoading, setMembersLoading] = useState(false);
-  const [membersError, setMembersError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  // If navigated with a group param, prefer that group and its members
+  const isEditMode = !!params.id;
+
   useEffect(() => {
-    const gid = Array.isArray(id) ? id[0] : id;
-    if (gid) {
-      setSelectedGroup(String(gid));
-    } else if (groups && groups.length > 0) {
-      setSelectedGroup(groups[0].id);
+    if (groups.length > 0 && !selectedGroupId) {
+      setSelectedGroupId(groups[0].id);
     }
-  }, [id, groups]);
+  }, [groups]);
 
-  // Load members for selectedGroup (uses GroupsContext cache)
   useEffect(() => {
-    let cancelled = false;
-    const loadMembers = async () => {
-      if (!selectedGroup) return;
-      setMembersLoading(true);
-      setMembersError(null);
-      try {
-        if (!getMembersForGroup)
-          throw new Error("getMembersForGroup not available");
-        const members = await getMembersForGroup(selectedGroup);
-        if (!cancelled) {
-          // normalize member shape for UI
-          const uiMembers = (members || []).map((m: any) => ({
-            id: m.id,
-            name: m.name || m.full_name || "Unknown",
-          }));
-          setAvailableMembers(uiMembers);
-        }
-      } catch (e: any) {
-        console.error("Failed to load members for group", selectedGroup, e);
-        if (!cancelled) {
-          setAvailableMembers([]);
-          setMembersError(e?.message ?? "Failed to load members");
-        }
-      } finally {
-        if (!cancelled) setMembersLoading(false);
-      }
-    };
-    loadMembers();
-  }, [selectedGroup]);
+    if (selectedGroupId) {
+      loadGroupMembers(selectedGroupId);
+    }
+  }, [selectedGroupId]);
 
-  // derive displayed groups list: if navigating from a group, show only that group
-  const groupIdParam = Array.isArray(id) ? id[0] : id;
-  const displayedGroups: { id: string; name: string }[] = groupIdParam
-    ? groups.find((g) => g.id === groupIdParam)
-      ? [groups.find((g) => g.id === groupIdParam)!]
-      : [{ id: groupIdParam, name: "Group" }]
-    : groups.length
-    ? groups.map((g) => ({ id: g.id, name: g.name }))
-    : [];
-
-  const membersForUI = availableMembers;
-  // membersLoading / membersError can be used to show UI state if desired
-
-  const handleMemberToggle = (memberId: string) => {
-    setAssignedMembers((prev: string[]) =>
-      prev.includes(memberId)
-        ? prev.filter((id) => id !== memberId)
-        : [...prev, memberId]
-    );
+  const loadGroupMembers = async (groupId: string) => {
+    setMembersLoading(true);
+    try {
+      const members = await getMembersForGroup(groupId);
+      setGroupMembers(members);
+    } catch (e) {
+      console.error("Error loading members:", e);
+    } finally {
+      setMembersLoading(false);
+    }
   };
 
   const handleSave = async () => {
-    if (saving) return;
-    // basic validation
     if (!title.trim()) {
-      alert("Please enter a task title.");
+      showToast("Validation Error", "Please enter a task title", "error");
       return;
     }
-    if (!selectedGroup) {
-      alert("Please select a group.");
+    if (!selectedGroupId) {
+       showToast("Validation Error", "Please select a group", "error");
       return;
     }
 
-    setSaving(true);
+    setLoading(true);
     try {
-      // Prepare payload for SupabaseService.createTask
-      const payload: any = {
+      const taskData = {
         title: title.trim(),
-        description: description || null,
-        group_id: selectedGroup,
-        due_date: dateValue ? dateValue.toISOString() : null,
-        // ensure we send an array of non-empty ids
-        assignees: Array.isArray(assignedMembers)
-          ? assignedMembers.filter(Boolean)
-          : [],
+        description: description.trim(),
+        group_id: selectedGroupId,
+        due_date: dueDate.toISOString(),
+        assignees: assignees.length > 0 ? assignees : (profile?.id ? [profile.id] : []), // Default to self if none selected
       };
 
-      console.log("createTask payload:", { assignedMembers, payload });
+      const { error } = await SupabaseService.createTask(taskData);
 
-      if (isEditMode) {
-        // TODO: implement updateTask when backend supports editing tasks
-        // For now, show a not-implemented message
-        alert("Edit mode not implemented yet. Saving as new task.");
-      }
-
-      const { data, error } = await SupabaseService.createTask(payload);
       if (error) {
-        console.error("createTask error:", error);
-        alert(
-          typeof error === "string"
-            ? error
-            : error?.message || "Failed to save task"
-        );
+        showToast("Error", "Failed to create task", "error");
       } else {
-        console.log("Task created:", data);
-        alert("Task saved");
-        // Optionally: navigate to task detail or refresh lists
+        showToast("Success", isEditMode ? "Task updated" : "Task created successfully", "success");
         router.back();
       }
-    } catch (e: any) {
-      console.error("Exception saving task:", e);
-      alert(e?.message || "Failed to save task");
+    } catch (e) {
+      console.error("Error saving task:", e);
+      showToast("Error", "An unexpected error occurred", "error");
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  // Format date for display
-  const formatDateTime = (date: Date | null) => {
-    if (!date) return "Select date & time";
-    // Use locale from device
-    const locale = I18nManager.isRTL ? "ar" : undefined;
-    return date.toLocaleString(locale, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const toggleAssignee = (userId: string) => {
+    if (assignees.includes(userId)) {
+      setAssignees(assignees.filter((id) => id !== userId));
+    } else {
+      setAssignees([...assignees, userId]);
+    }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      setDateValue(selectedDate);
-      setDueDate(selectedDate.toISOString().slice(0, 16).replace("T", " "));
+      const currentDate = new Date(dueDate);
+      currentDate.setFullYear(selectedDate.getFullYear());
+      currentDate.setMonth(selectedDate.getMonth());
+      currentDate.setDate(selectedDate.getDate());
+      setDueDate(currentDate);
+    }
+  };
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    setShowTimePicker(false);
+    if (selectedDate) {
+      const currentDate = new Date(dueDate);
+      currentDate.setHours(selectedDate.getHours());
+      currentDate.setMinutes(selectedDate.getMinutes());
+      setDueDate(currentDate);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={80}
-    >
-      <View style={styles.fullScreen}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()}>
-            <FontAwesome name="times" size={24} color="#6b7280" />
-          </Pressable>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {isEditMode ? "Edit Task" : "New Task"}
           </Text>
-          <Pressable onPress={handleSave} disabled={saving}>
-            <Text style={styles.headerSaveText}>
-              {saving ? "Saving..." : "Save"}
-            </Text>
-          </Pressable>
+          <View style={{ width: 40 }} />
         </View>
-        {/* Form Body */}
-        <ScrollView
-          style={styles.formScroll}
-          contentContainerStyle={{ paddingBottom: 32 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.formGroup}>
+
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.section}>
             <Text style={styles.label}>Title</Text>
             <TextInput
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="e.g., Do laundry"
+              placeholder="What needs to be done?"
+              placeholderTextColor={COLORS.textTertiary}
             />
           </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description (Optional)</Text>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Description</Text>
             <TextInput
-              style={[styles.input, { height: 80 }]}
+              style={[styles.input, styles.textArea]}
               value={description}
               onChangeText={setDescription}
-              placeholder="e.g., Separate whites and colors"
+              placeholder="Add details..."
+              placeholderTextColor={COLORS.textTertiary}
               multiline
+              numberOfLines={4}
+              textAlignVertical="top"
             />
           </View>
-          <View style={styles.formGroup}>
+
+          <View style={styles.section}>
             <Text style={styles.label}>Group</Text>
-            <View style={styles.selectBox}>
-              {displayedGroups.map((group) => (
-                <Pressable
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipList}
+            >
+              {groups.map((group) => (
+                <TouchableOpacity
                   key={group.id}
                   style={[
-                    styles.selectOption,
-                    selectedGroup === group.id && styles.selectOptionActive,
-                  ]}
-                  onPress={() => setSelectedGroup(group.id)}
-                >
-                  <Text
-                    style={[
-                      styles.selectOptionText,
-                      selectedGroup === group.id &&
-                        styles.selectOptionTextActive,
-                    ]}
-                  >
-                    {group.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Assign to</Text>
-            <View style={styles.chipRow}>
-              {membersLoading && (
-                <Text style={{ color: "#6b7280", marginBottom: 8 }}>
-                  Loading members...
-                </Text>
-              )}
-              {membersError && (
-                <Text style={{ color: "#dc2626", marginBottom: 8 }}>
-                  Failed to load members: {membersError}
-                </Text>
-              )}
-              {!membersLoading &&
-                !membersError &&
-                membersForUI.length === 0 && (
-                  <Text style={{ color: "#6b7280", marginBottom: 8 }}>
-                    No members available for this group
-                  </Text>
-                )}
-              {membersForUI.map((member: { id: string; name: string }) => (
-                <Pressable
-                  key={member.id}
-                  style={[
                     styles.chip,
-                    assignedMembers.includes(member.id)
-                      ? styles.chipActive
-                      : styles.chipInactive,
+                    selectedGroupId === group.id && {
+                      backgroundColor: group.color || COLORS.primary,
+                      borderColor: group.color || COLORS.primary,
+                    },
                   ]}
-                  onPress={() => handleMemberToggle(member.id)}
+                  onPress={() => setSelectedGroupId(group.id)}
                 >
                   <Text
                     style={[
                       styles.chipText,
-                      assignedMembers.includes(member.id) &&
-                        styles.chipTextActive,
+                      selectedGroupId === group.id && styles.chipTextSelected,
                     ]}
                   >
-                    {member.name}
+                    {group.name}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Due Date</Text>
-            <View style={styles.dateRow}>
-              <Pressable
-                style={[styles.input, styles.dateInput, { flex: 1 }]}
-                onPress={() => setShowDatePicker(true)}
+
+          <View style={styles.section}>
+            <View style={styles.dateTimeRow}>
+              <TouchableOpacity
+                style={[styles.dateButton, showDatePicker && styles.activeDateButton]}
+                onPress={() => {
+                  setShowTimePicker(false);
+                  setShowDatePicker(!showDatePicker);
+                }}
               >
-                <Text
-                  style={{
-                    color: dateValue ? "#1f2937" : "#6b7280",
-                    fontSize: 16,
-                  }}
-                >
-                  {formatDateTime(dateValue)}
+                <Ionicons 
+                  name="calendar-outline" 
+                  size={20} 
+                  color={showDatePicker ? COLORS.primary : COLORS.text} 
+                />
+                <Text style={[styles.dateText, showDatePicker && styles.activeDateText]}>
+                  {dueDate.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </Text>
-                <FontAwesome
-                  name="calendar"
-                  size={18}
-                  color="#6b7280"
-                  style={{ marginLeft: 8 }}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.dateButton, showTimePicker && styles.activeDateButton]}
+                onPress={() => {
+                  setShowDatePicker(false);
+                  setShowTimePicker(!showTimePicker);
+                }}
+              >
+                <Ionicons 
+                  name="time-outline" 
+                  size={20} 
+                  color={showTimePicker ? COLORS.primary : COLORS.text} 
                 />
-              </Pressable>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={dateValue || new Date()}
-                  mode="datetime"
-                  display="default"
-                  onChange={handleDateChange}
-                  style={styles.datePicker}
-                />
-              )}
+                <Text style={[styles.dateText, showTimePicker && styles.activeDateText]}>
+                  {dueDate.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {(showDatePicker || showTimePicker) && (
+              <View style={styles.pickerContainer}>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={dueDate}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "inline" : "default"}
+                    onChange={onDateChange}
+                    minimumDate={new Date()}
+                    accentColor={COLORS.primary}
+                    textColor={COLORS.text}
+                    themeVariant="light"
+                  />
+                )}
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={dueDate}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onTimeChange}
+                    accentColor={COLORS.primary}
+                    textColor={COLORS.text}
+                    themeVariant="light"
+                  />
+                )}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Assign To</Text>
+            {membersLoading ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.assigneeList}
+              >
+                {groupMembers.map((member) => {
+                  const isSelected = assignees.includes(member.id);
+                  return (
+                    <TouchableOpacity
+                      key={member.id}
+                      style={[
+                        styles.assigneeItem,
+                        isSelected && styles.assigneeItemSelected,
+                      ]}
+                      onPress={() => toggleAssignee(member.id)}
+                    >
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarText}>
+                          {member.full_name?.[0] || "?"}
+                        </Text>
+                        {isSelected && (
+                          <View style={styles.checkmarkBadge}>
+                            <Ionicons name="checkmark" size={10} color="#fff" />
+                          </View>
+                        )}
+                      </View>
+                      <Text 
+                        style={[
+                          styles.assigneeName,
+                          isSelected && styles.assigneeNameSelected
+                        ]} 
+                        numberOfLines={1}
+                      >
+                        {member.id === profile?.id ? "Me" : member.full_name?.split(" ")[0]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.saveBtn, loading && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveBtnText}>
+                {isEditMode ? "Save Changes" : "Create Task"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  fullScreen: {
+  container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.background,
   },
-  headerRow: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 12,
+    paddingHorizontal: SPACING.l,
+    paddingVertical: SPACING.m,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: COLORS.border,
     backgroundColor: "#fff",
   },
+  backBtn: {
+    padding: SPACING.xs,
+  },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.text,
   },
-  headerSaveText: {
-    color: "#2563eb",
-    fontWeight: "700",
-    fontSize: 17,
+  content: {
+    padding: SPACING.l,
   },
-  formScroll: {
-    flex: 1,
-    paddingHorizontal: 20,
-    marginTop: 12,
-  },
-  formGroup: {
-    marginBottom: 20,
+  section: {
+    marginBottom: SPACING.xl,
   },
   label: {
-    fontSize: 15,
-    color: "#6b7280",
-    fontWeight: "500",
-    marginBottom: 6,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.text,
+    marginBottom: SPACING.s,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
     fontSize: 16,
-    color: "#1f2937",
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
   },
-  selectBox: {
-    flexDirection: "row",
-    gap: 8,
+  textArea: {
+    minHeight: 100,
   },
-  selectOption: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 8,
-  },
-  selectOptionActive: {
-    backgroundColor: "#2563eb",
-  },
-  selectOptionText: {
-    color: "#374151",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  selectOptionTextActive: {
-    color: "#fff",
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+  chipList: {
+    gap: SPACING.s,
+    paddingVertical: 4,
   },
   chip: {
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.s,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
-  },
-  chipActive: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
-  },
-  chipInactive: {
-    backgroundColor: "#f3f4f6",
-    borderColor: "#e5e7eb",
+    borderColor: COLORS.border,
   },
   chipText: {
-    color: "#374151",
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    fontWeight: "500",
+    color: COLORS.textSecondary,
   },
-  chipTextActive: {
+  chipTextSelected: {
     color: "#fff",
+    fontFamily: FONTS.bold,
   },
-  dateRow: {
+  dateTimeRow: {
+    flexDirection: "row",
+    gap: SPACING.m,
+  },
+  dateButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  dateInput: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingRight: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
     backgroundColor: "#fff",
-    borderRadius: 12,
-    minHeight: 48,
-    marginBottom: 0,
+    padding: SPACING.m,
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: SPACING.s,
+    ...SHADOWS.small,
   },
-  datePicker: {
+  activeDateButton: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.inputBg,
+  },
+  activeDateText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
+  },
+  pickerContainer: {
+    backgroundColor: "#fff",
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
+    marginTop: SPACING.s,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
+  },
+  dateText: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  assigneeList: {
+    gap: SPACING.m,
+    paddingVertical: 4,
+  },
+  assigneeItem: {
+    alignItems: "center",
+    width: 60,
+  },
+  assigneeItemSelected: {
+    opacity: 1,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.inputBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.xs,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  avatarText: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.textSecondary,
+  },
+  checkmarkBadge: {
     position: "absolute",
-    left: 0,
+    bottom: 0,
     right: 0,
-    top: 48,
-    zIndex: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  assigneeName: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  assigneeNameSelected: {
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
+  },
+  footer: {
+    padding: SPACING.l,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  saveBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.l,
+    paddingVertical: SPACING.m,
+    alignItems: "center",
+    ...SHADOWS.primary,
+  },
+  saveBtnText: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: "#fff",
   },
 });
