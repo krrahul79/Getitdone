@@ -7,6 +7,7 @@ import {
   Animated,
   TouchableOpacity,
   Dimensions,
+  Image,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -76,16 +77,18 @@ export default function WelcomeScreen() {
           >
             <View style={styles.logoContainer}>
               <View style={styles.logoCircle}>
-                <FontAwesome name="check" size={40} color={COLORS.primary} />
+                <Image 
+                  source={require("../assets/images/icon.png")} 
+                  style={{ width: "100%", height: "100%", borderRadius: 24 }}
+                  resizeMode="contain"
+                />
               </View>
-              <View style={styles.logoBadge}>
-                <FontAwesome name="star" size={12} color="#fff" />
-              </View>
+              {/* Badge removed - looks cleaner with just the logo */}
             </View>
             
             <Text style={styles.title}>FairShare</Text>
             <Text style={styles.subtitle}>
-              Organize your life, together. The premium way to manage household tasks.
+              Effortless harmony for your shared home.
             </Text>
           </Animated.View>
 
