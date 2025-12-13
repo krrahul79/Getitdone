@@ -445,8 +445,10 @@ export const SupabaseService = {
       console.log(`[SupabaseService] Removing assignees:`, toRemove);
 
       if (toAdd.length > 0) {
-          const { error: addError } = await supabase.from("task_assignees").insert(
-            toAdd.map(uid => ({ task_id: taskId, user_id: uid }))
+          // Use upsert with ignoreDuplicates to prevent race conditions or "23505" errors
+          const { error: addError } = await supabase.from("task_assignees").upsert(
+            toAdd.map(uid => ({ task_id: taskId, user_id: uid })),
+            { onConflict: 'task_id, user_id', ignoreDuplicates: true }
           );
           if (addError) {
             console.error("[SupabaseService] Error adding assignees:", addError);
