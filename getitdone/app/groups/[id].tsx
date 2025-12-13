@@ -72,7 +72,7 @@ export default function GroupDetailsScreen() {
     if (!group?.join_code) return;
     try {
       await Share.share({
-        message: `Join my group "${group.name}" on GetItDone! Use code: ${group.join_code}`,
+        message: `Join my group "${group.name}" on FairShare! Use code: ${group.join_code}`,
       });
     } catch (error) {
       console.error("Error sharing:", error);

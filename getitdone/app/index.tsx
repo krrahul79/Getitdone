@@ -83,7 +83,7 @@ export default function WelcomeScreen() {
               </View>
             </View>
             
-            <Text style={styles.title}>Get It Done</Text>
+            <Text style={styles.title}>FairShare</Text>
             <Text style={styles.subtitle}>
               Organize your life, together. The premium way to manage household tasks.
             </Text>

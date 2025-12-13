@@ -40,7 +40,7 @@ const tutorialSteps = [
   },
   {
     icon: "bell",
-    title: "3. Get It Done!",
+    title: "3. FairShare!",
     description:
       "Get notified when a task is assigned to you, and feel the satisfaction of marking it complete.",
     bgColor: "#10b981", // emerald-500

@@ -64,7 +64,7 @@ export default function ProfileScreen() {
     {
       icon: "help-circle-outline",
       label: "Help & Support",
-      onPress: () => showToast("Support", "Contact us at support@getitdone.com", "info"),
+      onPress: () => showToast("Support", "Contact us at support@fairshare.com", "info"),
       color: COLORS.warning,
     },
     {
